@@ -152,11 +152,11 @@ for current_epoch in range(1,numEpochs):
       print(iters)
       print('total loss : ' + str(error_ave/val_freq))
       print('DSM loss   : ' + str(error_L1/val_freq))
-      if(sem_flag and not norm_flag): 
+      if(net.sem_flag and not net.norm_flag): 
         print('SEM loss   : ' + str(error_L2/val_freq))
-      if(not sem_flag and norm_flag): 
+      if(not net.sem_flag and net.norm_flag): 
         print('NORM loss   : ' + str(error_L3/val_freq))
-      if(sem_flag and norm_flag): 
+      if(net.sem_flag and net.norm_flag): 
         print('SEM loss   : ' + str(error_L2/val_freq))
         print('NORM loss  : ' + str(error_L3/val_freq))
 
