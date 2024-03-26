@@ -1,6 +1,12 @@
+## Define GPU properties
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+
+
 tensorflow==2.1.0  # Explicitly specifying TensorFlow 2.1.0
 scikit-image>=0.19.0  # scikit-image is recommended over skimage
 Pillow>=8.4.0  # PIL Fork (Friendly for future compatibility)
 opencv-python>=4.5.5  # OpenCV version compatible with TensorFlow 2.1
 glob  # Built-in Python module, no installation required
 numpy>=1.22.0  # NumPy version compatible with TensorFlow 2.1
+
