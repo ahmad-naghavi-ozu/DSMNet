@@ -3,6 +3,7 @@
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 
+python>=3.6
 tensorflow==2.1.0  # Explicitly specifying TensorFlow 2.1.0
 scikit-image>=0.17.2  # scikit-image is recommended over skimage
 Pillow>=8.4.0  # PIL Fork (Friendly for future compatibility)
