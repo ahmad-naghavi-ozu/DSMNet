@@ -1,0 +1,72 @@
+(ahmad-bhe) asfand@nova41:~/DSMNet-main$ python test_dsm.py Vaihingen False
+2024-03-30 12:28:47.611910: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcudart.so.10.1
+number of validation samples 17
+2024-03-30 12:28:48.728068: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcuda.so.1
+2024-03-30 12:28:48.812781: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1716] Found device 0 with properties: 
+pciBusID: 0000:3b:00.0 name: GeForce RTX 2080 Ti computeCapability: 7.5
+coreClock: 1.545GHz coreCount: 68 deviceMemorySize: 10.76GiB deviceMemoryBandwidth: 573.69GiB/s
+2024-03-30 12:28:48.831089: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1716] Found device 1 with properties: 
+pciBusID: 0000:5e:00.0 name: GeForce RTX 2080 Ti computeCapability: 7.5
+coreClock: 1.545GHz coreCount: 68 deviceMemorySize: 10.76GiB deviceMemoryBandwidth: 573.69GiB/s
+2024-03-30 12:28:48.831183: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcudart.so.10.1
+2024-03-30 12:28:48.831600: W tensorflow/stream_executor/platform/default/dso_loader.cc:59] Could not load dynamic library 'libcublas.so.10'; dlerror: libcublas.so.10: cannot open shared object file: No such file or directory; LD_LIBRARY_PATH: /opt/VirtualGL/lib64:/usr/local/cuda/lib64:
+2024-03-30 12:28:48.835014: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcufft.so.10
+2024-03-30 12:28:48.835672: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcurand.so.10
+2024-03-30 12:28:48.839528: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcusolver.so.10
+2024-03-30 12:28:48.841475: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcusparse.so.10
+2024-03-30 12:28:48.847632: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcudnn.so.7
+2024-03-30 12:28:48.847664: W tensorflow/core/common_runtime/gpu/gpu_device.cc:1753] Cannot dlopen some GPU libraries. Please make sure the missing libraries mentioned above are installed properly if you would like to use GPU. Follow the guide at https://www.tensorflow.org/install/gpu for how to download and setup the required libraries for your platform.
+Skipping registering GPU devices...
+2024-03-30 12:28:48.848091: I tensorflow/core/platform/cpu_feature_guard.cc:142] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN)to use the following CPU instructions in performance-critical operations:  AVX2 AVX512F FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2024-03-30 12:28:48.858853: I tensorflow/core/platform/profile_utils/cpu_utils.cc:104] CPU Frequency: 2900000000 Hz
+2024-03-30 12:28:48.860816: I tensorflow/compiler/xla/service/service.cc:168] XLA service 0x55b3ecb6c550 initialized for platform Host (this does not guarantee that XLA will be used). Devices:
+2024-03-30 12:28:48.860857: I tensorflow/compiler/xla/service/service.cc:176]   StreamExecutor device (0): Host, Default Version
+2024-03-30 12:28:48.863906: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1257] Device interconnect StreamExecutor with strength 1 edge matrix:
+2024-03-30 12:28:48.863936: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1263]      
+1
+
+
+
+
+
+The error message you're encountering indicates that TensorFlow is unable to find the `libcublas.so.10` library, which is a part of the CUDA toolkit. This library is essential for TensorFlow to utilize the GPU for computations. The error message also suggests that other GPU libraries might be missing or not properly installed.
+
+To resolve this issue, follow these steps:
+
+1. **Verify CUDA Installation**: Ensure that CUDA is correctly installed on your system. You can check this by running `nvcc --version` in your terminal. This command should return the version of CUDA installed. If CUDA is not installed or the version is incorrect, you will need to download and install the appropriate version from the [NVIDIA CUDA Toolkit website](https://developer.nvidia.com/cuda-toolkit).
+
+2. **Set LD_LIBRARY_PATH**: The error message suggests that the `LD_LIBRARY_PATH` environment variable might not include the path to the CUDA libraries. You can add the CUDA library path to the `LD_LIBRARY_PATH` environment variable by adding the following line to your `.bashrc` or `.bash_profile` file:
+   ```bash
+   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64
+   ```
+   After adding this line, reload your `.bashrc` or `.bash_profile` by running `source ~/.bashrc` or `source ~/.bash_profile`, or simply restart your terminal.
+
+3. **Install Missing Libraries**: If the issue persists, it's possible that other CUDA libraries are missing. You can install them by running the following command:
+   ```bash
+   sudo apt-get install libcublas10
+   ```
+   This command installs the `libcublas10` library, which is the one reported as missing in your error message. You might need to install other missing libraries in a similar manner.
+
+4. **Rebuild TensorFlow**: If you're building TensorFlow from source, ensure that you have the correct version of CUDA and cuDNN installed and that TensorFlow is configured to use them. You can follow the [TensorFlow GPU support guide](https://www.tensorflow.org/install/gpu) for detailed instructions on how to build TensorFlow with GPU support.
+
+5. **Check TensorFlow Compatibility**: Ensure that the version of TensorFlow you're using is compatible with the installed CUDA version. You can check the compatibility matrix on the [TensorFlow website](https://www.tensorflow.org/install/source#gpu).
+
+After following these steps, try running your script again. If the problem persists, consider reinstalling CUDA and cuDNN, and ensure that your TensorFlow installation is correctly configured to use the GPU.
+
+Citations:
+[1] https://stackoverflow.com/questions/55224016/importerror-libcublas-so-10-0-cannot-open-shared-object-file-no-such-file-or
+[2] https://github.com/tensorflow/tensorflow/issues/26182
+[3] https://github.com/tensorflow/tensorflow/issues/26209
+[4] https://superuser.com/questions/1419251/tensorflow-install-importerror-libcublas-so-10-0-cannot-open-shared-object-fil
+[5] https://github.com/tensorflow/tensorflow/issues/33891
+[6] https://github.com/tensorflow/tensorflow/issues/27306
+[7] https://forums.developer.nvidia.com/t/importerror-libcublas-so-10-0-cannot-open-shared-object-file-no-such-file-or-directory/71627
+[8] https://forums.developer.nvidia.com/t/importerror-libcublas-so-10-0-cannot-open-shared-object-file-no-such-file-or-directory/176278
+[9] https://stackoverflow.com/questions/68661993/original-error-libcublas-so-10-cannot-open-shared-object-file-no-such-file-or
+[10] https://forums.developer.nvidia.com/t/importerror-libcublas-so-10-0-cannot-open-shared-object-file-no-such-file-or-directory/146087/3
+[11] https://forums.developer.nvidia.com/t/libcublas-so-10-0-cannot-be-found/69629
+[12] https://techoverflow.net/2018/01/06/fixing-tensorflow-libcublas-so-8-0-cannot-open-shared-object-file-on-ubuntu/
+[13] https://stackoverflow.com/questions/47270885/tensorflow-importerror-libcublas-so-8-0-cannot-open-shared-object-file-no-su
+[14] https://github.com/tensorflow/tensorflow/issues/34753
+[15] https://forums.developer.nvidia.com/t/error-while-loading-shared-libraries-libcublas-so-10/142474
