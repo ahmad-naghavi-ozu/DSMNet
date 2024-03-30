@@ -80,4 +80,22 @@ Quick summary, use your conda environment's pip path to download packages (e.g D
 
 #####################################
 
+(bhe) asfand@nova41:~/DSMNet-main$ conda env list
+# conda environments:
+#
+SR                       /home/asfand/.conda/envs/SR
+ahmad-bhe                /home/asfand/.conda/envs/ahmad-bhe
+ahmed                    /home/asfand/.conda/envs/ahmed
+asfand                   /home/asfand/.conda/envs/asfand
+asfand2                  /home/asfand/.conda/envs/asfand2
+asfand_backup            /home/asfand/.conda/envs/asfand_backup
+bhe                   *  /home/asfand/.conda/envs/bhe
+fastai                   /home/asfand/.conda/envs/fastai
+keras                    /home/asfand/.conda/envs/keras
+py36                     /home/asfand/.conda/envs/py36
+py362                    /home/asfand/.conda/envs/py362
+base                     /opt/anaconda/3/202007
+
+#####################################
+
 
