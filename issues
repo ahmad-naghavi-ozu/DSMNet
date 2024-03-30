@@ -70,3 +70,14 @@ Citations:
 [13] https://stackoverflow.com/questions/47270885/tensorflow-importerror-libcublas-so-8-0-cannot-open-shared-object-file-no-su
 [14] https://github.com/tensorflow/tensorflow/issues/34753
 [15] https://forums.developer.nvidia.com/t/error-while-loading-shared-libraries-libcublas-so-10/142474
+
+#####################################
+
+For a general suggestion, I recommend you to look at the below link to learn how to install packages in your conda environment. (https://stackoverflow.com/questions/41060382/using-pip-to-install-packages-to-anaconda-environment)
+
+Quick summary, use your conda environment's pip path to download packages (e.g Dont use "pip install PACKAGE", rather use "/anaconda/envs/YOUR_CONDAENV_NAME/bin/pip install PACKAGE"). You can see the explanation thread below. When you use "pip" directly, it downloads to base environment and hence can produce conflicts.
+
+
+#####################################
+
+
