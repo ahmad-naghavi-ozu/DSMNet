@@ -98,4 +98,46 @@ base                     /opt/anaconda/3/202007
 
 #####################################
 
+(bhe) asfand@nova41:~/DSMNet-main$ conda install pip
+Collecting package metadata (current_repodata.json): done
+Solving environment: / 
+The environment is inconsistent, please check the package plan carefully
+The following packages are causing the inconsistency:
+
+  - defaults/linux-64::tk==8.6.12=h1ccaba5_0
+  - defaults/linux-64::wheel==0.41.2=py312h06a4308_0
+  - defaults/linux-64::libuuid==1.41.5=h5eee18b_0
+  - defaults/linux-64::openssl==3.0.13=h7f8727e_0
+  - defaults/linux-64::ncurses==6.4=h6a678d5_0
+  - defaults/linux-64::libstdcxx-ng==11.2.0=h1234567_1
+  - defaults/linux-64::xz==5.4.6=h5eee18b_0
+  - defaults/linux-64::zlib==1.2.13=h5eee18b_0
+  - defaults/linux-64::sqlite==3.41.2=h5eee18b_0
+  - defaults/linux-64::readline==8.2=h5eee18b_0
+  - defaults/linux-64::pip==23.3.1=py312h06a4308_0
+  - defaults/linux-64::setuptools==68.2.2=py312h06a4308_0
+  - defaults/linux-64::libffi==3.4.4=h6a678d5_0
+  - defaults/linux-64::expat==2.5.0=h6a678d5_0
+  - defaults/linux-64::bzip2==1.0.8=h5eee18b_5
+  - defaults/linux-64::python==3.12.2=h996f2a0_0
+  - defaults/linux-64::libgcc-ng==11.2.0=h1234567_1
+done
+
+
+==> WARNING: A newer version of conda exists. <==
+  current version: 4.8.3
+  latest version: 24.3.0
+
+Please update conda by running
+
+    $ conda update -n base -c defaults conda
+
+
+
+# All requested packages already installed.
+
+
+#############################################
+
+
 
