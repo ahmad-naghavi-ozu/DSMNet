@@ -141,3 +141,13 @@ Please update conda by running
 
 
 
+    I had the same problem, it was solved by installing cudatoolkit
+    conda install cudatoolkit
+
+This worked for me as well.
+
+#############################################
+
+
+
+
