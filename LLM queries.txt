@@ -1,0 +1,112 @@
+turn the following implementation with tensorflow to pytorch
+be cateful with those parts benefiting from tensorflow imported as tf
+please do not show me explanations and just produce the ultimate code in pytorch
+
+
+def call(self, x, training=True):
+
+    x0=self.encoder(x)
+    x0=self.bn0(x0, training=training)
+
+    if(self.sem_flag):
+      x_sem=self.deconv1_sem(x0)
+      x3_sem=tf.nn.relu(x_sem)
+      x_sem=self.do1_sem(x3_sem, training=training)
+      x_sem=self.deconv2_sem(x_sem)
+      x4_sem=tf.nn.relu(x_sem)
+      x_sem=self.do2_sem(x4_sem, training=training)
+      x_sem=self.deconv3_sem(x_sem)
+      x5_sem=tf.nn.relu(x_sem)
+      x_sem=self.do3_sem(x5_sem, training=training)
+      x_sem=self.deconv4_sem(x_sem)
+      x6_sem=tf.nn.relu(x_sem)
+      x_sem=self.do4_sem(x6_sem, training=training)
+      x_sem=self.deconv5_sem(x_sem)
+      x7_sem=tf.nn.relu(x_sem)
+      x_sem=self.do5_sem(x7_sem, training=training)
+      x_sem=self.conv_sem(x_sem)
+      x_sem=tf.nn.softmax(x_sem)
+
+    if(self.norm_flag):
+      x_norm=self.deconv1_norm(x0)
+      x3_norm=tf.nn.relu(x_norm)
+      x_norm=self.do1_norm(x3_norm, training=training)
+      x_norm=self.deconv2_norm(x_norm)
+      x4_norm=tf.nn.relu(x_norm)
+      x_norm=self.do2_norm(x4_norm, training=training)
+      x_norm=self.deconv3_norm(x_norm)
+      x5_norm=tf.nn.relu(x_norm)
+      x_norm=self.do3_norm(x5_norm, training=training)
+      x_norm=self.deconv4_norm(x_norm)
+      x6_norm=tf.nn.relu(x_norm)
+      x_norm=self.do4_norm(x6_norm, training=training)
+      x_norm=self.deconv5_norm(x_norm)
+      x7_norm=tf.nn.relu(x_norm)
+      x_norm=self.do5_norm(x7_norm, training=training)
+      x_norm=self.conv_norm(x_norm)
+      x_norm=tf.nn.relu(x_norm)
+
+    x=self.deconv1(x0)
+    x=tf.nn.relu(x)
+    if(self.norm_flag):
+      x=concatenate([x,x3_norm], axis = 3)
+    if(self.sem_flag):
+      x=concatenate([x,x3_sem], axis = 3)
+    x=self.conv_1(x)
+    x=tf.nn.relu(x)
+    x=self.conv_2(x)
+    x=tf.nn.relu(x)
+    x=self.do1(x, training=training)
+
+    x=self.deconv2(x)
+    x=tf.nn.relu(x)
+    if(self.norm_flag):
+      x=concatenate([x,x4_norm], axis = 3)
+    if(self.sem_flag):
+      x=concatenate([x,x4_sem], axis = 3)
+    x=self.conv_3(x)
+    x=tf.nn.relu(x)
+    x=self.conv_4(x)
+    x=tf.nn.relu(x)
+    x=self.do2(x, training=training)
+
+    x=self.deconv3(x)
+    x=tf.nn.relu(x)
+    if(self.norm_flag):
+      x=concatenate([x,x5_norm], axis = 3)
+    if(self.sem_flag):
+      x=concatenate([x,x5_sem], axis = 3)
+    x=self.conv_5(x)
+    x=tf.nn.relu(x)
+    x=self.conv_6(x)
+    x=tf.nn.relu(x)
+    x=self.do3(x, training=training)
+
+    x=self.deconv4(x)
+    x=tf.nn.relu(x)
+    if(self.norm_flag):
+      x=concatenate([x,x6_norm], axis = 3)
+    if(self.sem_flag):
+      x=concatenate([x,x6_sem], axis = 3)
+    x=self.conv_7(x)
+    x=tf.nn.relu(x)
+    x=self.conv_8(x)
+    x=tf.nn.relu(x)
+    x=self.do4(x, training=training)
+
+    x=self.deconv5(x)
+    x=tf.nn.relu(x)
+    if(self.norm_flag):
+      x=concatenate([x,x7_norm], axis = 3)
+    if(self.sem_flag):
+      x=concatenate([x,x7_sem], axis = 3)
+    x=self.conv_9(x)
+    x=tf.nn.relu(x)
+    x=self.conv_10(x)
+    x=tf.nn.relu(x)
+    x=self.do5(x, training=training)
+
+    x=self.conv_dsm(x)
+ 
+    return x, x_sem, x_norm
+
