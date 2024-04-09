@@ -2,111 +2,43 @@ turn the following implementation with tensorflow to pytorch
 be cateful with those parts benefiting from tensorflow imported as tf
 please do not show me explanations and just produce the ultimate code in pytorch
 
+#################################
+#################################
 
-def call(self, x, training=True):
+Question:
+can tensorflow Docker manage different versions of CUDA installed. I mean, if I cannot change the CUDA version due to administrative issues, then is it possible for tensorflow Docker to handle this situation for a specific implementation with tensorflow?
 
-    x0=self.encoder(x)
-    x0=self.bn0(x0, training=training)
 
-    if(self.sem_flag):
-      x_sem=self.deconv1_sem(x0)
-      x3_sem=tf.nn.relu(x_sem)
-      x_sem=self.do1_sem(x3_sem, training=training)
-      x_sem=self.deconv2_sem(x_sem)
-      x4_sem=tf.nn.relu(x_sem)
-      x_sem=self.do2_sem(x4_sem, training=training)
-      x_sem=self.deconv3_sem(x_sem)
-      x5_sem=tf.nn.relu(x_sem)
-      x_sem=self.do3_sem(x5_sem, training=training)
-      x_sem=self.deconv4_sem(x_sem)
-      x6_sem=tf.nn.relu(x_sem)
-      x_sem=self.do4_sem(x6_sem, training=training)
-      x_sem=self.deconv5_sem(x_sem)
-      x7_sem=tf.nn.relu(x_sem)
-      x_sem=self.do5_sem(x7_sem, training=training)
-      x_sem=self.conv_sem(x_sem)
-      x_sem=tf.nn.softmax(x_sem)
+Certainly! Let's explore how TensorFlow Docker containers handle different versions of CUDA:
 
-    if(self.norm_flag):
-      x_norm=self.deconv1_norm(x0)
-      x3_norm=tf.nn.relu(x_norm)
-      x_norm=self.do1_norm(x3_norm, training=training)
-      x_norm=self.deconv2_norm(x_norm)
-      x4_norm=tf.nn.relu(x_norm)
-      x_norm=self.do2_norm(x4_norm, training=training)
-      x_norm=self.deconv3_norm(x_norm)
-      x5_norm=tf.nn.relu(x_norm)
-      x_norm=self.do3_norm(x5_norm, training=training)
-      x_norm=self.deconv4_norm(x_norm)
-      x6_norm=tf.nn.relu(x_norm)
-      x_norm=self.do4_norm(x6_norm, training=training)
-      x_norm=self.deconv5_norm(x_norm)
-      x7_norm=tf.nn.relu(x_norm)
-      x_norm=self.do5_norm(x7_norm, training=training)
-      x_norm=self.conv_norm(x_norm)
-      x_norm=tf.nn.relu(x_norm)
+1. **Compatibility Between Host and Container**:
+   - The version of the **CUDA driver** installed on the host machine must be compatible with the **CUDA runtime** version inside the Docker container.
+   - The CUDA drivers are **not forwards compatible**, meaning the host must be at least as recent as the CUDA runtime version used in the container¹.
 
-    x=self.deconv1(x0)
-    x=tf.nn.relu(x)
-    if(self.norm_flag):
-      x=concatenate([x,x3_norm], axis = 3)
-    if(self.sem_flag):
-      x=concatenate([x,x3_sem], axis = 3)
-    x=self.conv_1(x)
-    x=tf.nn.relu(x)
-    x=self.conv_2(x)
-    x=tf.nn.relu(x)
-    x=self.do1(x, training=training)
+2. **Using NVIDIA Container Runtime**:
+   - To ensure compatibility, use the **NVIDIA container runtime** with your Docker installation.
+   - With this setup, you can run TensorFlow code written for a specific CUDA version inside a Docker container even if the host has a different CUDA version¹.
 
-    x=self.deconv2(x)
-    x=tf.nn.relu(x)
-    if(self.norm_flag):
-      x=concatenate([x,x4_norm], axis = 3)
-    if(self.sem_flag):
-      x=concatenate([x,x4_sem], axis = 3)
-    x=self.conv_3(x)
-    x=tf.nn.relu(x)
-    x=self.conv_4(x)
-    x=tf.nn.relu(x)
-    x=self.do2(x, training=training)
+3. **Updating NVIDIA Drivers**:
+   - For the widest range of options, consider updating both the **NVIDIA driver** and **CUDA driver** on the host to the latest stable versions.
+   - This ensures that your TensorFlow Docker containers can work seamlessly with the desired CUDA version¹.
 
-    x=self.deconv3(x)
-    x=tf.nn.relu(x)
-    if(self.norm_flag):
-      x=concatenate([x,x5_norm], axis = 3)
-    if(self.sem_flag):
-      x=concatenate([x,x5_sem], axis = 3)
-    x=self.conv_5(x)
-    x=tf.nn.relu(x)
-    x=self.conv_6(x)
-    x=tf.nn.relu(x)
-    x=self.do3(x, training=training)
+4. **Docker Versions and Flags**:
+   - Depending on your Docker version:
+     - Versions earlier than 19.03 require **nvidia-docker2** and the `--runtime=nvidia` flag.
+     - Versions including and after 19.03 use the **nvidia-container-toolkit** package and the `--gpus all` flag⁴.
 
-    x=self.deconv4(x)
-    x=tf.nn.relu(x)
-    if(self.norm_flag):
-      x=concatenate([x,x6_norm], axis = 3)
-    if(self.sem_flag):
-      x=concatenate([x,x6_sem], axis = 3)
-    x=self.conv_7(x)
-    x=tf.nn.relu(x)
-    x=self.conv_8(x)
-    x=tf.nn.relu(x)
-    x=self.do4(x, training=training)
+In summary, TensorFlow Docker containers can indeed manage different CUDA versions, but ensuring compatibility between the host and container is crucial. If administrative restrictions prevent you from changing the CUDA version directly, using the NVIDIA container runtime can help you achieve the desired setup. 🐳🚀
 
-    x=self.deconv5(x)
-    x=tf.nn.relu(x)
-    if(self.norm_flag):
-      x=concatenate([x,x7_norm], axis = 3)
-    if(self.sem_flag):
-      x=concatenate([x,x7_sem], axis = 3)
-    x=self.conv_9(x)
-    x=tf.nn.relu(x)
-    x=self.conv_10(x)
-    x=tf.nn.relu(x)
-    x=self.do5(x, training=training)
+Source: Conversation with Bing, 4/9/2024
+(1) Can the cuda version in docker container be different with the host .... https://stackoverflow.com/questions/50407977/can-the-cuda-version-in-docker-container-be-different-with-the-host-machine.
+(2) Docker | TensorFlow. https://www.tensorflow.org/install/docker.
+(3) Tensorflow/nvidia/cuda docker mismatched versions. https://stackoverflow.com/questions/55389669/tensorflow-nvidia-cuda-docker-mismatched-versions.
+(4) With multiple versions of CUDA installed, how can I make Tensorflow-GPU .... https://stackoverflow.com/questions/56281358/with-multiple-versions-of-cuda-installed-how-can-i-make-tensorflow-gpu-use-a-sp.
+(5) MultiCUDA: Multiple Versions of CUDA on One Machine. https://medium.com/@peterjussi/multicuda-multiple-versions-of-cuda-on-one-machine-4b6ccda6faae.
 
-    x=self.conv_dsm(x)
- 
-    return x, x_sem, x_norm
+
+#################################
+#################################
+
 
