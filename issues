@@ -1,3 +1,12 @@
+## Required commands for using GPUs on Nova
+
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+
+##############################################################################
+##############################################################################
+
 (ahmad-bhe) asfand@nova41:~/DSMNet-main$ python test_dsm.py Vaihingen False
 2024-03-30 12:28:47.611910: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcudart.so.10.1
 number of validation samples 17
