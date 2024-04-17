@@ -8,6 +8,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 https://stackoverflow.com/questions/73424216/how-to-install-cudnn-and-cuda-toolkit-in-a-python-virtual-environment
 
+http://nova41:8888/?token=6c84e7de7ed3080ee8cbea50f32147ee4c9941ca91e803c7
+
 ##############################################################################
 
 (ahmad-bhe) asfand@nova41:~/DSMNet-main$ python test_dsm.py Vaihingen False
