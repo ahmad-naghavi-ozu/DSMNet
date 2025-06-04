@@ -1,293 +1,384 @@
+# MAHDI ELHOUSNI, WPI 2020
+# Altered by Ahmad Naghavi, OzU 2024
+# Converted to PyTorch by Ahmad Naghavi, OzU 2025
+
 from config import *
+import numpy as np
+import os
+import time
+from datetime import datetime
+import logging
+
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+
 from nets import *
 from utils import *
-from metrics import *  # Import the new metrics module
+from metrics import *
 
-import numpy as np
-import cv2
-import time
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from tifffile import *
-import logging  # Add the logging module
-
-import tensorflow as tf
-from tensorflow.keras import backend as K
-from tensorflow.keras.utils import *
-from tensorflow.keras.models import *
-from tensorflow.keras.layers import *
-from tensorflow.keras.callbacks import *
-from tensorflow.keras.applications.densenet import DenseNet121
+from skimage import io
 
 
-# Call the test function based on the mode, either train, validation, or test
-def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
-    # Set up logging configuration
-    if verbose:
-        logging.basicConfig(
-            level=logging.INFO,  # Set the logging level
-            format='%(asctime)s - %(levelname)s - %(message)s',  # Specify the format
-            handlers=[
-                logging.FileHandler(f"{dataset_name}_{'mtl' if not correction else 'dae'}_test_dsm_output.log", mode='w'),  # Log to file (w: overwrite mode; a: append mode)
-                logging.StreamHandler()  # Also log to console
-            ]
-        )
-        logger = logging.getLogger()
+def test_dsm(mtl_model=None, dae_model=None, save_predictions=True, save_visualizations=True):
+    """
+    Test the DSM estimation model on test data
+    
+    Args:
+        mtl_model: Trained MTL model (optional, will load if None)
+        dae_model: Trained DAE model for correction (optional)
+        save_predictions: Whether to save prediction images
+        save_visualizations: Whether to save comparison visualizations
+    
+    Returns:
+        dict: Dictionary containing computed metrics
+    """
+    
+    # Setup device
+    device = setup_device()
+    
+    # Setup logging
+    logger = logging.getLogger()
+    logger.info(f"\\n{'='*60}")
+    logger.info(f"STARTING DSM TESTING ON {dataset_name}")
+    logger.info(f"{'='*60}")
+    
+    # Collect test data
+    test_data = collect_tilenames("test")
+    test_rgb, test_sar, test_dsm, test_sem, _ = test_data
+    
+    if not test_rgb:
+        logger.warning("No test data found!")
+        return {}
+    
+    logger.info(f"Number of test samples: {len(test_rgb)}")
+    
+    # Load MTL model if not provided
+    if mtl_model is None:
+        logger.info("Loading MTL model...")
+        input_channels = 4 if sar_mode else 3
+        backbone_net = create_densenet_backbone(input_channels)
+        mtl_model = MTL(backbone_net, sem_flag=sem_flag, norm_flag=norm_flag, edge_flag=edge_flag)
+        
+        # Load trained weights
+        checkpoint_path = f"{predCheckPointPath}_best.pth"
+        if not os.path.exists(checkpoint_path):
+            checkpoint_path = f"{predCheckPointPath}_final.pth"
+        
+        if os.path.exists(checkpoint_path):
+            checkpoint = torch.load(checkpoint_path, map_location=device)
+            if hasattr(mtl_model, 'module'):
+                mtl_model.module.load_state_dict(checkpoint['model_state_dict'])
+            else:
+                mtl_model.load_state_dict(checkpoint['model_state_dict'])
+            logger.info(f"Loaded MTL weights from {checkpoint_path}")
+        else:
+            logger.warning(f"No MTL checkpoint found at {checkpoint_path}")
+            return {}
+    
+    mtl_model = mtl_model.to(device)
+    mtl_model.eval()
+    
+    # Load DAE model if correction is enabled
+    if correction and dae_model is None:
+        logger.info("Loading DAE model for correction...")
+        dae_model = UNet(in_channels=1, out_channels=1)
+        
+        checkpoint_path = f"{corrCheckPointPath}_best.pth"
+        if not os.path.exists(checkpoint_path):
+            checkpoint_path = f"{corrCheckPointPath}_final.pth"
+        
+        if os.path.exists(checkpoint_path):
+            checkpoint = torch.load(checkpoint_path, map_location=device)
+            if hasattr(dae_model, 'module'):
+                dae_model.module.load_state_dict(checkpoint['model_state_dict'])
+            else:
+                dae_model.load_state_dict(checkpoint['model_state_dict'])
+            logger.info(f"Loaded DAE weights from {checkpoint_path}")
+            dae_model = dae_model.to(device)
+            dae_model.eval()
+        else:
+            logger.warning(f"No DAE checkpoint found, skipping correction")
+            dae_model = None
+    
+    # Create test dataset and data loader
+    test_dataset = DSMDataset(test_rgb, test_sar, test_dsm, test_sem, mode='test')
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
+    
+    # Initialize metrics accumulators
+    all_dsm_preds = []
+    all_dsm_targets = []
+    all_sem_preds = []
+    all_sem_targets = []
+    
+    # Create output directories
+    if save_predictions or save_visualizations:
+        output_dir = f"./output/{dataset_name}/test_results/"
+        os.makedirs(output_dir, exist_ok=True)
+        if save_predictions:
+            os.makedirs(f"{output_dir}/predictions/", exist_ok=True)
+        if save_visualizations:
+            os.makedirs(f"{output_dir}/visualizations/", exist_ok=True)
+    
+    # Test loop
+    logger.info("Starting inference on test data...")
+    inference_times = []
+    
+    with torch.no_grad():
+        for batch_idx, batch_data in enumerate(test_loader):
+            start_time = time.time()
+            
+            # Move data to device
+            inputs = batch_data['input'].to(device)
+            dsm_targets = batch_data['dsm'].to(device)
+            sem_targets = batch_data['sem'].to(device)
+            
+            # MTL forward pass
+            dsm_pred, sem_pred, norm_pred, edge_pred = mtl_model(inputs, 'full', training=False)
+            
+            # Apply DAE correction if enabled
+            if correction and dae_model is not None:
+                dsm_pred = dae_model(dsm_pred)
+            
+            inference_time = time.time() - start_time
+            inference_times.append(inference_time)
+            
+            # Convert to CPU for metrics computation
+            dsm_pred_cpu = dsm_pred.cpu()
+            dsm_targets_cpu = dsm_targets.cpu()
+            
+            # Accumulate predictions
+            all_dsm_preds.append(dsm_pred_cpu)
+            all_dsm_targets.append(dsm_targets_cpu)
+            
+            if sem_pred is not None:
+                all_sem_preds.append(sem_pred.cpu())
+                all_sem_targets.append(sem_targets.cpu())
+            
+            # Save predictions if requested
+            if save_predictions:
+                save_prediction_images(
+                    dsm_pred_cpu.squeeze().numpy(),
+                    dsm_targets_cpu.squeeze().numpy(),
+                    batch_idx,
+                    f"{output_dir}/predictions/"
+                )
+            
+            # Save visualizations if requested
+            if save_visualizations and batch_idx < 10:  # Save first 10 for visualization
+                save_comparison_visualization(
+                    inputs.cpu().squeeze().numpy(),
+                    dsm_pred_cpu.squeeze().numpy(),
+                    dsm_targets_cpu.squeeze().numpy(),
+                    sem_pred.cpu() if sem_pred is not None else None,
+                    batch_idx,
+                    f"{output_dir}/visualizations/"
+                )
+            
+            if (batch_idx + 1) % 10 == 0:
+                logger.info(f"Processed {batch_idx + 1}/{len(test_loader)} samples")
+    
+    # Compute overall metrics
+    logger.info("Computing final metrics...")
+    
+    # Concatenate all predictions
+    dsm_preds = torch.cat(all_dsm_preds, dim=0)
+    dsm_targets = torch.cat(all_dsm_targets, dim=0)
+    
+    # Compute height metrics
+    height_metrics = compute_height_metrics_pytorch(dsm_preds, dsm_targets)
+    
+    # Compute segmentation metrics if available
+    segmentation_metrics = {}
+    if all_sem_preds:
+        sem_preds = torch.cat(all_sem_preds, dim=0)
+        sem_targets = torch.cat(all_sem_targets, dim=0)
+        segmentation_metrics = compute_segmentation_metrics_pytorch(sem_preds, sem_targets)
+    
+    # Combine all metrics
+    all_metrics = {**height_metrics, **segmentation_metrics}
+    
+    # Add timing information
+    avg_inference_time = np.mean(inference_times)
+    all_metrics['avg_inference_time'] = avg_inference_time
+    all_metrics['total_samples'] = len(test_loader)
+    
+    # Print results
+    print_test_results(all_metrics, logger)
+    
+    # Save metrics to file
+    save_test_metrics(all_metrics, f"{output_dir}/test_metrics.txt")
+    
+    logger.info(f"Testing completed successfully!")
+    logger.info(f"Average inference time: {avg_inference_time:.4f} seconds per sample")
+    
+    return all_metrics
+
+
+def save_prediction_images(pred_dsm, target_dsm, sample_idx, output_dir):
+    """Save prediction and target DSM images"""
+    
+    # Normalize for visualization
+    pred_norm = (pred_dsm - pred_dsm.min()) / (pred_dsm.max() - pred_dsm.min() + 1e-8)
+    target_norm = (target_dsm - target_dsm.min()) / (target_dsm.max() - target_dsm.min() + 1e-8)
+    
+    # Save as images
+    pred_path = f"{output_dir}/pred_dsm_{sample_idx:04d}.png"
+    target_path = f"{output_dir}/target_dsm_{sample_idx:04d}.png"
+    
+    plt.imsave(pred_path, pred_norm, cmap='viridis')
+    plt.imsave(target_path, target_norm, cmap='viridis')
+
+
+def save_comparison_visualization(input_rgb, pred_dsm, target_dsm, sem_pred, sample_idx, output_dir):
+    """Save side-by-side comparison visualization"""
+    
+    # Prepare RGB input for visualization
+    if input_rgb.shape[0] >= 3:  # If has RGB channels
+        rgb_viz = np.transpose(input_rgb[:3], (1, 2, 0))
+        # Normalize RGB to [0, 1]
+        rgb_viz = (rgb_viz - rgb_viz.min()) / (rgb_viz.max() - rgb_viz.min() + 1e-8)
     else:
-        logger = logging.getLogger('dummy')
-        logger.addHandler(logging.NullHandler())
+        rgb_viz = np.zeros((input_rgb.shape[1], input_rgb.shape[2], 3))
     
-    # Collect the required file addresses for testing the entire end-to-end model
-    test_rgb, test_sar, test_dsm, test_sem, test_count = collect_tilenames(mode)
-
-    NUM_VAL_IMAGES = len(test_rgb)
-    if verbose: 
-        logger.info(f"\nNumber of {mode} samples: {NUM_VAL_IMAGES}\n")
-
-    if mtl is None:
-        # Define the backbone of MTL serving as the encoder section
-        backboneNet = DenseNet121(
-            weights='imagenet', 
-            include_top=False, 
-            input_tensor=Input(shape=(cropSize, cropSize, 3))
-        )
-        # Define the MTL model with necessary parameters and loading the saved weights thereafter
-        mtl = MTL(
-            backboneNet, 
-            sem_flag=sem_flag, 
-            norm_flag=norm_flag, 
-            edge_flag=edge_flag
-        )
-        mtl.load_weights(predCheckPointPath)
-
-    # Load the DAE model with saved weights if it is the case
-    if correction and dae is None:
-        dae = Autoencoder()
-        dae.load_weights(corrCheckPointPath)
-
-    # Initialize the test error metrics
-    total_delta1 = total_delta2 = total_delta3 = 0.0
-    total_mse = total_mae = total_rmse = 0.0
-    confusion_matrix = np.zeros((sem_k, sem_k))  # Initialize confusion matrix
-    total_time = 0
-
-    # Get the number of test items
-    tilesLen = len(test_rgb)
-    # Estimate nDSM for every input test tile
-    for tile in range(tilesLen):
-        filename = '.'.join(test_rgb[tile].split('/')[-1].split('.')[:-1])
-        if verbose: 
-            logger.info(f"\nCurrent {mode} tile #{tile + 1}/{tilesLen}: {filename}")
-
-        # Initialize the RGB pack of regular patches for DSM estimation procedure
-        rgb_data = []
-        # Get the respective coordinates for every individual input tile.
-        coordinates = []
-
-        # Load the RGB image and the respective ground truth DSM data
-        rgb_tile, dsm_tile, sem_tile = load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile)
-
-        # Collect regular overlapping patches out of the input RGB image
-        for x1, x2, y1, y2 in sliding_window(rgb_tile, step=int(cropSize / 6), window_size=(cropSize, cropSize)):
-            coordinates.append([y1, y2, x1, x2])
-            rgb_data.append(rgb_tile[y1:y2, x1:x2, :])
-
-        # Initialize the DSM and SEM prediction tensors
-        gaussian = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1]])
-        dsm_pred = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1]])
-        sem_pred = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1], sem_k])
-
-        # Compute DSM estimation
-        start = time.time()
-        for crop in range(len(rgb_data)):
-            cropRGB = rgb_data[crop]
-            y1, y2, x1, x2 = coordinates[crop]
-            prob_matrix = gaussian_kernel(cropRGB.shape[0], cropRGB.shape[1])
-            dsm_output, sem_output, norm_output, edge_output = mtl.call(cropRGB[np.newaxis, ...], mtl_head_mode, training=False)
-
-            if correction:
-                correctionList = []
-                if sem_flag:
-                    correctionList.append(sem_output)
-                if norm_flag:
-                    correctionList.append(norm_output)
-                if edge_flag:
-                    correctionList.append(edge_output)
-                correctionList = [dsm_output] + correctionList + [cropRGB[np.newaxis, ...]]
-                correctionInput = tf.concat(correctionList, axis=-1)
-
-                noise = dae.call(correctionInput, training=False)
-                dsm_output = dsm_output - noise
-            
-            dsm_output = dsm_output.numpy().squeeze()
-            sem_output = sem_output.numpy().squeeze()
-
-            dsm_pred[y1:y2, x1:x2] += np.multiply(dsm_output, prob_matrix)
-            sem_pred[y1:y2, x1:x2, :] += np.multiply(sem_output, prob_matrix[:, :, np.newaxis])
-            gaussian[y1:y2, x1:x2] += prob_matrix
-
-        end = time.time()
-
-        # Finalize Gaussian smoothing 
-        dsm_pred = np.divide(dsm_pred, gaussian)
-        sem_pred = np.divide(sem_pred, gaussian[:, :, np.newaxis])
-
-        # Calculate SEM metrics - accumulate confusion matrix
-        sem_pred = convert_sem_onehot_to_annotation(sem_pred)
-        confusion_matrix += update_confusion_matrix(sem_pred, sem_tile)
-
-        # Fuse DSM prediction with semantic segmentation mask for binary classification tasks
-        # This restricts height values to only appear for the class of interest (e.g., buildings)
-        if binary_classification_flag:
-            # Create binary mask for the class of interest from predictions
-            pred_mask = (sem_pred == 1).astype(np.float32)
-            
-            # Create binary mask from ground truth segmentation
-            gt_mask = (sem_tile == 1).astype(np.float32)
-            
-            # Store original values for logging purposes
-            dsm_tile_original = dsm_tile.copy()
-            
-            # Apply predicted mask to DSM predictions
-            dsm_pred = dsm_pred * pred_mask
-            
-            # Apply ground truth mask to ground truth DSM
-            dsm_tile = dsm_tile * gt_mask
-            
-            if verbose:
-                logger.info(f"Applied binary segmentation masks:")
-                logger.info(f"  - Prediction mask to predicted DSM")
-                logger.info(f"  - Ground truth mask to ground truth DSM")
-                
-                # Calculate statistics on the predicted mask
-                pred_masked_percentage = 100.0 * (1.0 - np.mean(pred_mask))
-                logger.info(f"Masked out {pred_masked_percentage:.2f}% of pixels in predicted DSM")
-                
-                # Calculate statistics on the ground truth mask
-                gt_masked_percentage = 100.0 * (1.0 - np.mean(gt_mask))
-                logger.info(f"Masked out {gt_masked_percentage:.2f}% of pixels in ground truth DSM")
-                
-                # Calculate how many ground truth pixels had non-zero values in background
-                nonzero_bg = np.sum((gt_mask == 0) & (dsm_tile_original > 0))
-                if nonzero_bg > 0:
-                    bg_percentage = 100.0 * nonzero_bg / np.sum(gt_mask == 0)
-                    logger.info(f"Found {nonzero_bg} non-zero background pixels in ground truth ({bg_percentage:.2f}%)")
-
-        # Calculate DSM metrics
-        total_delta1, total_delta2, total_delta3, \
-        total_mse, total_mae, total_rmse, _, _ = compute_dsm_metrics(
-            verbose=verbose,
-            logger=logger,
-            total_delta1=total_delta1,
-            total_delta2=total_delta2,
-            total_delta3=total_delta3,
-            total_mse=total_mse,
-            total_mae=total_mae,
-            total_rmse=total_rmse,
-            dsm_tile=dsm_tile,
-            dsm_pred=dsm_pred
-        )
-
-        # Keep track of computation time
-        tile_time = end - start
-        total_time += tile_time
-        if verbose: logger.info("Tile time  : " + str(tile_time))
-        
-        if save_test:            
-            # Save the predicted DSM 
-            dsm_pred = Image.fromarray(dsm_pred)
-            subfolder = (
-                f"dsm_"
-                f"{1 if sem_flag else 0}"
-                f"{1 if norm_flag else 0}"
-                f"{1 if edge_flag else 0}"
-                f"{'+' if correction else ''}"
-            )
-            dsm_output_dir = f"./output/{dataset_name}/{sar_indicator}/{subfolder}/"
-            if not os.path.exists(dsm_output_dir):
-                os.makedirs(dsm_output_dir)
-            dsm_file_path = os.path.join(dsm_output_dir, filename + '.tif')
-            dsm_pred.save(dsm_file_path)
-            
-            # Save the predicted SEM with SAR indicator
-            sem_pred = Image.fromarray(sem_pred)
-            sem_output_dir = f"./output/{dataset_name}/{sar_indicator}/sem/"
-            if not os.path.exists(sem_output_dir):
-                os.makedirs(sem_output_dir)
-            sem_file_path = os.path.join(sem_output_dir, filename + '.tif')
-            sem_pred.save(sem_file_path)
-
-    # Calculate final segmentation metrics from accumulated confusion matrix
-    iou_per_class, f1_per_class, precision_per_class, recall_per_class, miou, overall_accuracy, FWIoU = \
-        calculate_segmentation_metrics_from_confusion_matrix(confusion_matrix)
-
-    # Calculate other averages
-    avg_mse = total_mse / tilesLen
-    avg_mae = total_mae / tilesLen
-    avg_rmse = total_rmse / tilesLen
-    avg_delta1 = total_delta1 / tilesLen
-    avg_delta2 = total_delta2 / tilesLen
-    avg_delta3 = total_delta3 / tilesLen
+    # Normalize DSM predictions and targets
+    pred_norm = (pred_dsm - pred_dsm.min()) / (pred_dsm.max() - pred_dsm.min() + 1e-8)
+    target_norm = (target_dsm - target_dsm.min()) / (target_dsm.max() - target_dsm.min() + 1e-8)
     
-    if verbose:
-        # Calculate means for all metrics
-        dsm_metrics_str = (
-            f"DSM Regression Metrics:\n"
-            f"    MSE:    {avg_mse:.6f}\n"
-            f"    MAE:    {avg_mae:.6f}\n"
-            f"    RMSE:   {avg_rmse:.6f}\n"
-            f"    Delta1: {avg_delta1:.6f}\n"
-            f"    Delta2: {avg_delta2:.6f}\n"
-            f"    Delta3: {avg_delta3:.6f}\n"
-        )
+    # Create error map
+    error_map = np.abs(pred_dsm - target_dsm)
+    error_norm = (error_map - error_map.min()) / (error_map.max() - error_map.min() + 1e-8)
+    
+    # Create subplot visualization
+    n_plots = 4 if sem_pred is not None else 3
+    fig, axes = plt.subplots(1, n_plots, figsize=(4*n_plots, 4))
+    
+    # RGB input
+    axes[0].imshow(rgb_viz)
+    axes[0].set_title('RGB Input')
+    axes[0].axis('off')
+    
+    # Target DSM
+    im1 = axes[1].imshow(target_norm, cmap='viridis')
+    axes[1].set_title('Target DSM')
+    axes[1].axis('off')
+    plt.colorbar(im1, ax=axes[1], fraction=0.046)
+    
+    # Predicted DSM
+    im2 = axes[2].imshow(pred_norm, cmap='viridis')
+    axes[2].set_title('Predicted DSM')
+    axes[2].axis('off')
+    plt.colorbar(im2, ax=axes[2], fraction=0.046)
+    
+    # Error map
+    if n_plots > 3:
+        im3 = axes[3].imshow(error_norm, cmap='hot')
+        axes[3].set_title('Error Map')
+        axes[3].axis('off')
+        plt.colorbar(im3, ax=axes[3], fraction=0.046)
+    
+    plt.tight_layout()
+    plt.savefig(f"{output_dir}/comparison_{sample_idx:04d}.png", dpi=150, bbox_inches='tight')
+    plt.close()
 
-        # Format all segmentation metrics using the utility function
-        sem_metrics_str = format_segmentation_metrics(
-            iou_per_class=iou_per_class,
-            f1_per_class=f1_per_class,
-            precision_per_class=precision_per_class,
-            recall_per_class=recall_per_class,
-            miou=miou,
-            overall_accuracy=overall_accuracy,
-            FWIoU=FWIoU
-        )
+
+def print_test_results(metrics, logger):
+    """Print formatted test results"""
+    
+    logger.info(f"\\n{'='*60}")
+    logger.info(f"TEST RESULTS SUMMARY")
+    logger.info(f"{'='*60}")
+    
+    # Height estimation metrics
+    logger.info(f"\\nHeight Estimation Metrics:")
+    logger.info(f"{'-'*30}")
+    for metric in height_error_metrics + height_accuracy_metrics:
+        if metric in metrics:
+            logger.info(f"{metric.upper():>8}: {metrics[metric]:.6f}")
+    
+    # Segmentation metrics
+    seg_metrics = [k for k in metrics.keys() if any(seg in k for seg in segmentation_scalar_metrics)]
+    if seg_metrics:
+        logger.info(f"\\nSegmentation Metrics:")
+        logger.info(f"{'-'*25}")
+        for metric in segmentation_scalar_metrics:
+            if metric in metrics:
+                logger.info(f"{metric.upper():>8}: {metrics[metric]:.6f}")
+    
+    # Performance metrics
+    if 'avg_inference_time' in metrics:
+        logger.info(f"\\nPerformance Metrics:")
+        logger.info(f"{'-'*20}")
+        logger.info(f"Avg Inference Time: {metrics['avg_inference_time']:.4f} seconds")
+        logger.info(f"Total Samples: {metrics['total_samples']}")
+    
+    logger.info(f"\\n{'='*60}")
+
+
+def save_test_metrics(metrics, output_path):
+    """Save test metrics to file"""
+    
+    with open(output_path, 'w') as f:
+        f.write(f"DSMNet Test Results - {dataset_name}\\n")
+        f.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\\n")
+        f.write(f"{'='*60}\\n\\n")
         
-        # Log all metrics with clear sections
-        logger.info(
-            f"\nEvaluation Results for {test_count} Test Samples\n"
-            f"{'='*50}\n"
-            f"{dsm_metrics_str}\n"
-            f"{'='*50}\n"
-            f"Semantic Segmentation Metrics:\n{sem_metrics_str}\n"
-            f"{'='*50}\n"
-            f"Test process finished in {total_time:.6f} sec.\n"
-        )
-
-    # Return a comprehensive set of metrics (both regression and segmentation)
-    return {
-        # Regression metrics
-        "mse": avg_mse,
-        "mae": avg_mae, 
-        "rmse": avg_rmse,
-        "delta1": avg_delta1,
-        "delta2": avg_delta2,
-        "delta3": avg_delta3,
+        # Height metrics
+        f.write(f"Height Estimation Metrics:\\n")
+        f.write(f"{'-'*30}\\n")
+        for metric in height_error_metrics + height_accuracy_metrics:
+            if metric in metrics:
+                f.write(f"{metric.upper():>8}: {metrics[metric]:.6f}\\n")
         
-        # Segmentation metrics - class metrics first (following config.py organization)
-        "iou_per_class": iou_per_class,
-        "precision_per_class": precision_per_class,
-        "recall_per_class": recall_per_class,
-        "f1_per_class": f1_per_class,
-        # Scalar/overall metrics next
-        "miou": miou,
-        "overall_accuracy": overall_accuracy,
-        "fwiou": FWIoU,
+        # Segmentation metrics
+        seg_metrics = [k for k in metrics.keys() if any(seg in k for seg in segmentation_scalar_metrics)]
+        if seg_metrics:
+            f.write(f"\\nSegmentation Metrics:\\n")
+            f.write(f"{'-'*25}\\n")
+            for metric in segmentation_scalar_metrics:
+                if metric in metrics:
+                    f.write(f"{metric.upper():>8}: {metrics[metric]:.6f}\\n")
         
-        # Other information
-        "time": total_time,
-        "count": test_count
-    }
+        # Performance metrics
+        if 'avg_inference_time' in metrics:
+            f.write(f"\\nPerformance Metrics:\\n")
+            f.write(f"{'-'*20}\\n")
+            f.write(f"Avg Inference Time: {metrics['avg_inference_time']:.4f} seconds\\n")
+            f.write(f"Total Samples: {metrics['total_samples']}\\n")
+        
+        # All metrics (for reference)
+        f.write(f"\\nAll Metrics (Key: Value):\\n")
+        f.write(f"{'-'*30}\\n")
+        for key, value in sorted(metrics.items()):
+            f.write(f"{key}: {value}\\n")
 
 
-if __name__ == '__main__':
-    metrics = test_dsm(mtl=None, dae=None, mode='test', save_test=True, verbose=True)
+def main():
+    """Main testing function"""
+    
+    # Setup logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(f"{dataset_name}_test_pytorch_output.log", mode='w'),
+            logging.StreamHandler()
+        ]
+    )
+    
+    # Run testing
+    test_metrics = test_dsm(
+        mtl_model=None,
+        dae_model=None,
+        save_predictions=True,
+        save_visualizations=True
+    )
+    
+    return test_metrics
 
+
+if __name__ == "__main__":
+    main()

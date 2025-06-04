@@ -1,14 +1,23 @@
 # MAHDI ELHOUSNI, WPI 2020
 # Altered by Ahmad Naghavi, OzU 2024
+# Converted to PyTorch by Ahmad Naghavi, OzU 2025
 
 import os
-# Set up GPU environment variables for CUDA device management
-# Ensure CUDA devices are ordered by PCI bus ID for consistent behavior across sessions
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# Specify which GPU to use; here, GPU with index 1 is selected
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Change this to the desired GPU index
-# Set TensorFlow log level to a specific level
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INFO, 2 = filter out INFO & WARNINGS, 3 = only ERROR messages
+import torch
+import torch.nn as nn
+import torch.distributed as dist
+
+# Multi-GPU Configuration
+USE_MULTI_GPU = True  # Set to True to enable multi-GPU training
+GPU_IDS = [0, 1, 2, 3]  # List of GPU IDs to use (adjust based on available GPUs)
+MASTER_GPU = 0  # Master GPU for model initialization
+
+# Set CUDA device visibility (optional, can be controlled externally)
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"  # Uncomment and adjust as needed
+
+# PyTorch CUDA settings
+torch.backends.cudnn.benchmark = True  # Optimize for consistent input sizes
+torch.backends.cudnn.deterministic = False  # Allow non-deterministic operations for speed
 
 # Define the dataset to be used for training and testing
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
@@ -198,3 +207,30 @@ sem_k = len(semantic_label_map)
 
 # Check if the dataset is binary classification based on label codes
 binary_classification_flag = len(label_codes) == 2 and set(label_codes) == {0, 1}
+
+# Device Configuration
+def setup_device():
+    """Setup device configuration for single or multi-GPU training"""
+    if torch.cuda.is_available():
+        if USE_MULTI_GPU and len(GPU_IDS) > 1:
+            device = torch.device(f'cuda:{MASTER_GPU}')
+            print(f"Using multi-GPU training on devices: {GPU_IDS}")
+        else:
+            device = torch.device(f'cuda:{GPU_IDS[0] if GPU_IDS else 0}')
+            print(f"Using single GPU: {device}")
+    else:
+        device = torch.device('cpu')
+        print("CUDA not available, using CPU")
+    return device
+
+def setup_distributed():
+    """Setup distributed training if using multiple GPUs"""
+    if USE_MULTI_GPU and len(GPU_IDS) > 1 and torch.cuda.device_count() > 1:
+        if not dist.is_initialized():
+            # Initialize the process group for multi-GPU training
+            dist.init_process_group(backend='nccl')
+        return True
+    return False
+
+# Initialize device
+device = setup_device() if 'torch' in globals() else None

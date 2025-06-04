@@ -154,3 +154,215 @@ You may find the implementation fairly documented as for every parameter in the 
 - The `nets.py` file contains the architecture of MTL and DAE models, and `utils.py` file also provides utility functions with enough documentation that you may find them informative.
 
 Finally, after setting the required parameters inside the `config.py` file, to train the MTL and DAE models, you may just run the `train_mtl.py` and `train_dae.py` files respectively. To test the trained models, you may run the `test_dsm.py` file, considering the `correction` parameter accordingly as stipulated earlier.
+
+## PyTorch Implementation with Multi-GPU Support
+
+### Features
+
+This repository now includes a complete **PyTorch implementation** with the following enhancements:
+
+- **Python 3.11 Support**: Full compatibility with Python 3.11
+- **Multi-GPU Training**: Support for both DataParallel and DistributedDataParallel training
+- **Modern PyTorch Architecture**: Updated neural network implementations using latest PyTorch best practices
+- **Enhanced Performance**: Optimized data loading and training pipeline
+- **Comprehensive Metrics**: PyTorch-native metrics computation for height and segmentation tasks
+
+### Installation
+
+#### Option 1: Conda Environment (Recommended for Python 3.11)
+
+```bash
+# Clone the repository and switch to PyTorch branch
+git clone https://github.com/ahmad-naghavi-ozu/DSMNet.git
+cd DSMNet
+git checkout tensorflow-to-pytorch-python311
+
+# Use the automated installation script for Python 3.11
+./install_py311.sh
+
+# The script will create a conda environment named 'dsmnet_pytorch_py311'
+# Activate the environment
+conda activate dsmnet_pytorch_py311
+
+# Verify installation
+python test_setup.py
+```
+
+#### Option 2: Manual Python 3.11 Setup
+
+```bash
+# Clone repository
+git clone https://github.com/ahmad-naghavi-ozu/DSMNet.git
+cd DSMNet
+git checkout tensorflow-to-pytorch-python311
+
+# Create conda environment with Python 3.11
+conda create -n dsmnet_pytorch_py311 python=3.11 -y
+conda activate dsmnet_pytorch_py311
+
+# Install PyTorch with CUDA support
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
+
+# Install other dependencies
+conda install numpy scipy scikit-learn matplotlib pandas opencv pillow -c conda-forge -y
+pip install scikit-image tqdm
+
+# Verify installation
+python test_setup.py
+```
+
+#### Option 3: Virtual Environment (Alternative)
+
+```bash
+# Clone repository
+git clone https://github.com/ahmad-naghavi-ozu/DSMNet.git
+cd DSMNet
+git checkout tensorflow-to-pytorch-python311
+
+# Create a Python 3.11 virtual environment
+python3.11 -m venv dsmnet_pytorch
+source dsmnet_pytorch/bin/activate  # On Linux/Mac
+# or
+# dsmnet_pytorch\Scripts\activate  # On Windows
+
+# Install PyTorch dependencies
+pip install -r requirements.txt
+```
+
+#### Quick Environment Activation
+
+After installation, you can quickly activate the conda environment using:
+
+```bash
+# Use the activation script
+./activate_dsmnet_py311.sh
+
+# Or manually
+conda activate dsmnet_pytorch_py311
+```
+
+### Usage
+
+#### Quick Start - Full Pipeline
+
+Run the complete training and testing pipeline:
+
+```bash
+./run_full_pipeline.sh
+```
+
+#### Individual Training Steps
+
+**1. Train MTL Model:**
+```bash
+# Basic training
+./run_train_mtl.sh
+
+# With custom parameters
+EPOCHS=150 BATCH_SIZE=16 LEARNING_RATE=0.001 ./run_train_mtl.sh
+
+# Distributed training (multi-GPU)
+DISTRIBUTED=true ./run_train_mtl.sh
+```
+
+**2. Train DAE Model:**
+```bash
+# Basic training (requires trained MTL model)
+./run_train_dae.sh
+
+# With custom parameters
+EPOCHS=75 BATCH_SIZE=8 ./run_train_dae.sh
+```
+
+**3. Test the Models:**
+```bash
+# Test both MTL and DAE
+./run_test.sh
+
+# Test only MTL
+TEST_STAGE=mtl ./run_test.sh
+
+# Test only DAE
+TEST_STAGE=dae ./run_test.sh
+```
+
+#### Manual Training (Python Scripts)
+
+You can also run the training scripts directly:
+
+```bash
+# MTL training
+python train_mtl.py --epochs 100 --batch_size 8 --learning_rate 0.001
+
+# DAE training
+python train_dae.py --epochs 50 --batch_size 4 --mtl_checkpoint checkpoints/mtl_model_best.pth
+
+# Testing
+python test_dsm.py --mtl_checkpoint checkpoints/mtl_model_best.pth --dae_checkpoint checkpoints/dae_model_best.pth
+```
+
+### Multi-GPU Configuration
+
+The PyTorch implementation supports multiple GPU training modes:
+
+#### DataParallel (Single-node, multiple GPUs)
+```python
+# In config.py
+USE_MULTI_GPU = True
+GPU_IDS = [0, 1, 2, 3]  # Use GPUs 0, 1, 2, 3
+```
+
+#### DistributedDataParallel (Recommended for multiple GPUs)
+```bash
+# Launch distributed training
+python -m torch.distributed.launch --nproc_per_node=4 train_mtl.py --distributed
+```
+
+### PyTorch Files Overview
+
+- **`nets.py`**: PyTorch neural network architectures (MTL, UNet, DAE)
+- **`utils.py`**: PyTorch utilities, datasets, and data loaders
+- **`train_mtl.py`**: Multi-task learning training script
+- **`train_dae.py`**: Denoising autoencoder training script
+- **`test_dsm.py`**: Testing and evaluation script
+- **`metrics.py`**: PyTorch metrics computation
+- **`requirements.txt`**: Python 3.11 dependencies
+
+### Performance Features
+
+- **Automatic Mixed Precision**: Faster training with reduced memory usage
+- **Efficient Data Loading**: Multi-worker data loading with prefetching
+- **Gradient Accumulation**: Handle larger effective batch sizes
+- **Learning Rate Scheduling**: Cosine annealing and step-based schedulers
+- **Checkpointing**: Automatic model saving and resuming
+- **Tensorboard Logging**: Training progress visualization
+
+### Output Structure
+
+```
+checkpoints/          # Saved model checkpoints
+├── mtl_model_best.pth
+├── mtl_model_last.pth
+├── dae_model_best.pth
+└── dae_model_last.pth
+
+output/              # Test outputs and predictions
+├── predictions/
+├── visualizations/
+└── metrics.json
+
+plots/               # Training plots and graphs
+├── training_loss.png
+├── validation_metrics.png
+└── comparison_plots.png
+```
+
+### System Requirements
+
+- **Python**: 3.11+
+- **PyTorch**: 2.0.0+
+- **CUDA**: 11.7+ (for GPU training)
+- **RAM**: 16GB+ recommended
+- **GPU**: 8GB+ VRAM recommended for training
+
+For questions or issues with the PyTorch implementation, please check the troubleshooting section or open an issue on GitHub.
