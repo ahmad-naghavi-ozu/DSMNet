@@ -358,3 +358,168 @@ def per_class_metrics_summary(metrics_dict, num_classes):
         f1 = metrics_dict.get(f'f1_score_class{class_idx}', 0.0)
         
         print(f"{class_idx:>5} {iou:>8.4f} {precision:>10.4f} {recall:>8.4f} {f1:>8.4f}")
+
+
+class HeightMetrics:
+    """Class for computing height estimation metrics"""
+    
+    def __init__(self):
+        self.reset()
+    
+    def reset(self):
+        """Reset metrics accumulation"""
+        self.total_mse = 0.0
+        self.total_mae = 0.0
+        self.total_rmse = 0.0
+        self.total_samples = 0
+        self.all_predictions = []
+        self.all_targets = []
+    
+    def update(self, predictions, targets):
+        """Update metrics with new batch"""
+        metrics = compute_height_metrics_pytorch(predictions, targets)
+        batch_size = predictions.shape[0] if len(predictions.shape) > 2 else 1
+        
+        self.total_mse += metrics.get('mse', 0.0) * batch_size
+        self.total_mae += metrics.get('mae', 0.0) * batch_size
+        self.total_rmse += metrics.get('rmse', 0.0) * batch_size
+        self.total_samples += batch_size
+        
+        # Store for detailed analysis
+        self.all_predictions.append(predictions.detach().cpu())
+        self.all_targets.append(targets.detach().cpu())
+    
+    def compute(self):
+        """Compute final averaged metrics"""
+        if self.total_samples == 0:
+            return {}
+        
+        return {
+            'mse': self.total_mse / self.total_samples,
+            'mae': self.total_mae / self.total_samples,
+            'rmse': self.total_rmse / self.total_samples,
+            'total_samples': self.total_samples
+        }
+    
+    def compute_detailed(self):
+        """Compute detailed metrics on all accumulated data"""
+        if not self.all_predictions:
+            return {}
+        
+        all_pred = torch.cat(self.all_predictions, dim=0)
+        all_targ = torch.cat(self.all_targets, dim=0)
+        
+        return compute_height_metrics_pytorch(all_pred, all_targ)
+
+
+class SegmentationMetrics:
+    """Class for computing semantic segmentation metrics"""
+    
+    def __init__(self, num_classes=None):
+        self.num_classes = num_classes if num_classes is not None else sem_k
+        self.reset()
+    
+    def reset(self):
+        """Reset metrics accumulation"""
+        self.confusion_matrix = np.zeros((self.num_classes, self.num_classes))
+        self.total_samples = 0
+    
+    def update(self, predictions, targets):
+        """Update metrics with new batch"""
+        # Convert predictions to class indices if they are logits/probabilities
+        if len(predictions.shape) == 4:  # (B, C, H, W)
+            pred_classes = torch.argmax(predictions, dim=1)
+        else:
+            pred_classes = predictions
+        
+        # Convert to numpy for confusion matrix computation
+        pred_np = pred_classes.detach().cpu().numpy().flatten()
+        targ_np = targets.detach().cpu().numpy().flatten()
+        
+        # Update confusion matrix
+        cm = confusion_matrix(targ_np, pred_np, labels=range(self.num_classes))
+        self.confusion_matrix += cm
+        self.total_samples += predictions.shape[0] if len(predictions.shape) > 2 else 1
+    
+    def compute(self):
+        """Compute final metrics from confusion matrix"""
+        if self.confusion_matrix.sum() == 0:
+            return {}
+        
+        # Compute per-class metrics
+        tp = np.diag(self.confusion_matrix)
+        fp = self.confusion_matrix.sum(axis=0) - tp
+        fn = self.confusion_matrix.sum(axis=1) - tp
+        
+        # Avoid division by zero
+        precision = np.divide(tp, tp + fp, out=np.zeros_like(tp, dtype=float), where=(tp + fp) != 0)
+        recall = np.divide(tp, tp + fn, out=np.zeros_like(tp, dtype=float), where=(tp + fn) != 0)
+        f1 = np.divide(2 * precision * recall, precision + recall, 
+                      out=np.zeros_like(precision, dtype=float), where=(precision + recall) != 0)
+        
+        # IoU computation
+        union = tp + fp + fn
+        iou = np.divide(tp, union, out=np.zeros_like(tp, dtype=float), where=union != 0)
+        
+        # Overall accuracy
+        accuracy = np.sum(tp) / np.sum(self.confusion_matrix) if np.sum(self.confusion_matrix) > 0 else 0.0
+        
+        # Mean metrics
+        mean_precision = np.mean(precision)
+        mean_recall = np.mean(recall)
+        mean_f1 = np.mean(f1)
+        mean_iou = np.mean(iou)
+        
+        metrics = {
+            'accuracy': accuracy,
+            'mean_precision': mean_precision,
+            'mean_recall': mean_recall,
+            'mean_f1': mean_f1,
+            'mean_iou': mean_iou,
+            'total_samples': self.total_samples
+        }
+        
+        # Add per-class metrics
+        for i in range(self.num_classes):
+            metrics[f'precision_class{i}'] = precision[i]
+            metrics[f'recall_class{i}'] = recall[i]
+            metrics[f'f1_score_class{i}'] = f1[i]
+            metrics[f'iou_class{i}'] = iou[i]
+        
+        return metrics
+    
+    def get_confusion_matrix(self):
+        """Get the current confusion matrix"""
+        return self.confusion_matrix.copy()
+    
+    def plot_confusion_matrix(self, normalize=False, title='Confusion Matrix', save_path=None):
+        """Plot confusion matrix"""
+        cm = self.confusion_matrix.copy()
+        
+        if normalize:
+            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        
+        plt.figure(figsize=(8, 6))
+        plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+        plt.title(title)
+        plt.colorbar()
+        
+        tick_marks = np.arange(self.num_classes)
+        plt.xticks(tick_marks, range(self.num_classes))
+        plt.yticks(tick_marks, range(self.num_classes))
+        
+        fmt = '.2f' if normalize else 'd'
+        thresh = cm.max() / 2.
+        for i, j in np.ndindex(cm.shape):
+            plt.text(j, i, format(cm[i, j], fmt),
+                    ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black")
+        
+        plt.ylabel('True label')
+        plt.xlabel('Predicted label')
+        plt.tight_layout()
+        
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        
+        plt.show()

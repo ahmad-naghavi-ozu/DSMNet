@@ -5,6 +5,9 @@
 !images/
 !env/
 
+# Development/conversion tools (ignored)
+_tools/
+
 # Always ignore these common files/folders
 __pycache__/
 *.py[cod]
