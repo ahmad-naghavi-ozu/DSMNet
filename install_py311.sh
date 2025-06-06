@@ -42,12 +42,28 @@ source $(conda info --base)/etc/profile.d/conda.sh
 conda activate ${ENV_NAME}
 
 echo "🎯 Installing PyTorch with CUDA support..."
-# Install PyTorch with CUDA 11.8 support for Python 3.11
-# Using conda-forge channel for better compatibility
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
+# Install PyTorch components step by step for better reliability
+echo "  📦 Installing PyTorch core..."
+conda install pytorch pytorch-cuda=11.8 -c pytorch -c nvidia -y
+
+echo "  📦 Installing Torchvision..."
+conda install torchvision -c pytorch -y
+
+echo "  📦 Installing Torchaudio..."
+conda install torchaudio -c pytorch -y
 
 echo "📦 Installing scientific computing packages..."
-conda install numpy scipy scikit-learn matplotlib pandas opencv pillow -c conda-forge -y
+echo "  📦 Installing NumPy and SciPy..."
+conda install numpy scipy -c conda-forge -y
+
+echo "  📦 Installing scikit-learn..."
+conda install scikit-learn -c conda-forge -y
+
+echo "  📦 Installing visualization packages..."
+conda install matplotlib pandas -c conda-forge -y
+
+echo "  📦 Installing OpenCV and Pillow..."
+conda install opencv pillow -c conda-forge -y
 
 echo "🔧 Installing additional packages with pip..."
 pip install scikit-image tqdm
