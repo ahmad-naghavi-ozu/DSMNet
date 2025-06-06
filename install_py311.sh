@@ -15,6 +15,12 @@ if ! command -v conda &> /dev/null; then
     exit 1
 fi
 
+# Check if mamba is available, install it if not
+if ! command -v mamba &> /dev/null; then
+    echo "🔧 Mamba not found. Installing mamba for faster package management..."
+    conda install mamba -n base -c conda-forge -y
+fi
+
 # Environment name
 ENV_NAME="dsmnet_pytorch_py311"
 
@@ -27,7 +33,17 @@ if conda env list | grep -q "^${ENV_NAME} "; then
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo "🗑️  Removing existing environment..."
+        
+        # Check if the environment is currently active and handle deactivation
+        if [[ "$CONDA_DEFAULT_ENV" == "${ENV_NAME}" ]]; then
+            echo "🔄 Environment is currently active. Please run this script from base environment or another environment."
+            echo "💡 Run: conda deactivate && ./install_py311.sh"
+            exit 1
+        fi
+        
+        # Now remove the environment
         conda env remove -n ${ENV_NAME} -y
+        echo "✅ Environment removed successfully."
     else
         echo "❌ Aborting installation."
         exit 1
@@ -44,26 +60,26 @@ conda activate ${ENV_NAME}
 echo "🎯 Installing PyTorch with CUDA support..."
 # Install PyTorch components step by step for better reliability
 echo "  📦 Installing PyTorch core..."
-conda install pytorch pytorch-cuda=11.8 -c pytorch -c nvidia -y
+mamba install pytorch pytorch-cuda=11.8 -c pytorch -c nvidia -y
 
 echo "  📦 Installing Torchvision..."
-conda install torchvision -c pytorch -y
+mamba install torchvision -c pytorch -y
 
 echo "  📦 Installing Torchaudio..."
-conda install torchaudio -c pytorch -y
+mamba install torchaudio -c pytorch -y
 
 echo "📦 Installing scientific computing packages..."
 echo "  📦 Installing NumPy and SciPy..."
-conda install numpy scipy -c conda-forge -y
+mamba install numpy scipy -c conda-forge -y
 
 echo "  📦 Installing scikit-learn..."
-conda install scikit-learn -c conda-forge -y
+mamba install scikit-learn -c conda-forge -y
 
 echo "  📦 Installing visualization packages..."
-conda install matplotlib pandas -c conda-forge -y
+mamba install matplotlib pandas -c conda-forge -y
 
 echo "  📦 Installing OpenCV and Pillow..."
-conda install opencv pillow -c conda-forge -y
+mamba install opencv pillow -c conda-forge -y
 
 echo "🔧 Installing additional packages with pip..."
 pip install scikit-image tqdm
