@@ -17,8 +17,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
-import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
 
 from nets import *
 from utils import *
@@ -44,7 +42,7 @@ set_seed(42)
 
 # Set up logging configuration
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Changed to DEBUG to capture debug messages
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler(mtl_log_file, mode='w'),
@@ -54,15 +52,8 @@ logging.basicConfig(
 logger = logging.getLogger()
 
 def main():
-    # Initialize distributed training if using multiple GPUs
-    distributed = setup_distributed_training() if USE_MULTI_GPU else False
-    
-    # Setup device
-    if distributed:
-        device = torch.device(f'cuda:{torch.distributed.get_rank()}')
-        torch.cuda.set_device(device)
-    else:
-        device = setup_device()
+    # Setup device for DataParallel multi-GPU training
+    device = setup_device()
     
     # Keep track of computation time
     total_start = time.time()
@@ -109,11 +100,8 @@ def main():
             param.requires_grad = False
         logger.info("Backbone weights frozen")
     
-    # Setup model for multi-GPU training
-    if distributed:
-        mtl_model = DDP(mtl_model, device_ids=[device])
-    elif USE_MULTI_GPU and len(GPU_IDS) > 1:
-        mtl_model = nn.DataParallel(mtl_model, device_ids=GPU_IDS)
+    # Setup model for multi-GPU training using DataParallel
+    mtl_model = setup_model_for_multi_gpu(mtl_model)
     
     # Define loss functions
     if reg_loss == 'mse':
@@ -232,9 +220,7 @@ def main():
     total_time = time.time() - total_start
     logger.info(f"\\nTraining completed in {total_time:.2f} seconds")
     
-    # Cleanup distributed training
-    if distributed:
-        cleanup_distributed()
+    # Training completed - no cleanup needed for DataParallel
 
 
 def train_epoch(model, data_loader, optimizer, dsm_loss_fn, sem_loss_fn, norm_loss_fn, edge_loss_fn, 
@@ -279,7 +265,21 @@ def train_epoch(model, data_loader, optimizer, dsm_loss_fn, sem_loss_fn, norm_lo
             rmse_per_sample = torch.sqrt(mse_per_sample)
             batch_rmse = rmse_per_sample.mean()
         
-        L2 = sem_loss_fn(sem_out, sem_targets.squeeze().long()) if sem_flag and sem_out is not None else torch.tensor(0.0, device=device)
+        # Debug tensor shapes for semantic segmentation
+        if sem_flag and sem_out is not None:
+            try:
+                sem_targets_processed = sem_targets.squeeze().long()
+                logger.debug(f"Batch {batch_idx}: sem_out shape: {sem_out.shape}, sem_targets_processed shape: {sem_targets_processed.shape}")
+                L2 = sem_loss_fn(sem_out, sem_targets_processed)
+            except Exception as e:
+                logger.error(f"Error in semantic loss calculation at batch {batch_idx}")
+                logger.error(f"sem_out shape: {sem_out.shape}")
+                logger.error(f"sem_targets original shape: {sem_targets.shape}")
+                logger.error(f"sem_targets after squeeze shape: {sem_targets.squeeze().shape}")
+                logger.error(f"Error: {str(e)}")
+                raise e
+        else:
+            L2 = torch.tensor(0.0, device=device)
         L3 = norm_loss_fn(norm_out, norm_targets) if norm_flag and norm_out is not None and norm_targets is not None else torch.tensor(0.0, device=device)
         L4 = edge_loss_fn(edge_out.squeeze(), edge_targets.squeeze()) if edge_flag and edge_out is not None and edge_targets is not None else torch.tensor(0.0, device=device)
         

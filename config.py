@@ -7,10 +7,11 @@ import torch
 import torch.nn as nn
 import torch.distributed as dist
 
-# Multi-GPU Configuration
-USE_MULTI_GPU = True  # Set to True to enable multi-GPU training
-GPU_IDS = [0, 1, 2, 3]  # List of GPU IDs to use (adjust based on available GPUs)
+# Multi-GPU Configuration - Temporarily disabled for debugging
+USE_MULTI_GPU = False  # Temporarily disable multi-GPU to debug segfault
+GPU_IDS = [0]  # Use single GPU for now
 MASTER_GPU = 0  # Master GPU for model initialization
+USE_DATA_PARALLEL = False  # Disable DataParallel for debugging
 
 # Set CUDA device visibility (optional, can be controlled externally)
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"  # Uncomment and adjust as needed
@@ -19,11 +20,15 @@ MASTER_GPU = 0  # Master GPU for model initialization
 torch.backends.cudnn.benchmark = True  # Optimize for consistent input sizes
 torch.backends.cudnn.deterministic = False  # Allow non-deterministic operations for speed
 
+# Memory management settings to prevent fragmentation
+import os
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+
 # Define the dataset to be used for training and testing
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023Amini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'DFC2023Amini'  # Change this to the desired dataset name
+dataset_name = 'DFC2023S'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -117,14 +122,14 @@ def calculate_dynamic_batch_size(base_crop_size, base_batch_per_gpu, dataset_siz
     # Memory scales with crop_size^2 * complexity_factor
     crop_memory_factor = (base_crop_size / 256) ** 2  # Normalize to 256x256 baseline
     
-    # Apply less conservative scaling for better GPU utilization
-    # The complexity factors were too conservative for your available memory
+    # Apply very conservative scaling to prevent OOM errors
+    # Further reduced after repeated memory issues
     if complexity_factor < 1.5:  # Low complexity (dsm mode)
-        effective_complexity = complexity_factor * 0.7  # Reduce impact by 30%
+        effective_complexity = complexity_factor * 0.8  # Reduce impact by 20% (was 40%)
     elif complexity_factor < 2.5:  # Medium complexity
-        effective_complexity = complexity_factor * 0.8  # Reduce impact by 20%
+        effective_complexity = complexity_factor * 0.9  # Reduce impact by 10% (was 30%)
     else:  # High complexity (full mode)
-        effective_complexity = complexity_factor * 0.9  # Reduce impact by 10%
+        effective_complexity = complexity_factor * 1.0  # No reduction (was 20%)
     
     total_memory_factor = crop_memory_factor * effective_complexity
     
@@ -140,10 +145,10 @@ def calculate_dynamic_batch_size(base_crop_size, base_batch_per_gpu, dataset_siz
             adjusted_batch_per_gpu = max_batch_size_per_gpu
             print(f"Reducing batch size for small dataset ({dataset_size} samples) to ensure {min_batches_per_epoch}+ batches per epoch")
     
-    # Apply GPU memory-based boost for better utilization
-    # With 7-10GB available per GPU, we can afford larger batch sizes
-    if adjusted_batch_per_gpu < 4 and (dataset_size is None or dataset_size >= 100):  # Only boost for larger datasets
-        memory_boost = min(3, 4 // adjusted_batch_per_gpu)  # Boost by 2-3x
+    # Apply minimal GPU memory boost to prevent OOM
+    # Very conservative settings after repeated memory errors
+    if adjusted_batch_per_gpu < 4 and (dataset_size is None or dataset_size >= 100):  # Reduced threshold from 6 to 4
+        memory_boost = min(2, 8 // adjusted_batch_per_gpu)  # Boost by up to 2x only (was 3x)
         adjusted_batch_per_gpu = min(base_batch_per_gpu, adjusted_batch_per_gpu * memory_boost)
     
     total_batch_size = adjusted_batch_per_gpu * num_gpus
@@ -162,20 +167,25 @@ small_datasets = {
 # Get dataset size for optimization
 dataset_size = small_datasets.get(dataset_name, None)
 
-# Base dataset configurations optimized for available GPU memory (7-10GB per GPU)
+# Base dataset configurations optimized for available GPU memory (RTX 2080 Ti with ~11GB)
 # These will be dynamically adjusted based on actual configuration flags
+# More aggressive settings for DataParallel multi-GPU training
 base_dataset_configs = {
-    # Optimized base batch sizes for better GPU utilization
-    # With 7-10GB available memory per GPU, we can afford larger batch sizes
-    'Vaihingen': (320, 24),          # Increased from 16 to 24 for 320x320
-    'DFC2018': (320, 24),            # Increased from 16 to 24 for 320x320
+    # More aggressive values for stable DataParallel multi-GPU setup
+    'Vaihingen': (320, 16),          # Increased from 12 to 16 for 320x320
+    'DFC2018': (320, 16),            # Increased from 12 to 16 for 320x320
     
-    'Vaihingen_crp256': (256, 32),   # Increased from 24 to 32 for 256x256
-    'DFC2018_crp256': (256, 32),     # Increased from 24 to 32 for 256x256  
-    'DFC2019_crp256': (256, 32),     # Increased from 24 to 32 for 256x256
+    'Vaihingen_crp256': (256, 24),   # Increased from 20 to 24 for 256x256
+    'DFC2018_crp256': (256, 24),     # Increased from 20 to 24 for 256x256  
+    'DFC2019_crp256': (256, 24),     # Increased from 20 to 24 for 256x256
+    'DFC2019_crp256_bin': (256, 24), # Added missing entry for binary classification
     
-    'DFC2019_crp512': (512, 12),     # Increased from 8 to 12 for 512x512
-    'DFC2023': (512, 12),            # Increased from 8 to 12 for 512x512
+    'DFC2019_crp512': (512, 2),      # Very conservative for debugging
+    'DFC2023A': (512, 2),            # Very conservative for debugging
+    'DFC2023Asmall': (512, 2),       # Very conservative for debugging
+    'DFC2023Amini': (512, 2),        # Very conservative for debugging
+    'DFC2023S': (512, 2),            # Very conservative for debugging
+    'DFC2023': (512, 2),             # Very conservative for debugging
 }
 
 # Get base cropSize and batch_per_gpu, then calculate dynamic batch size
@@ -221,7 +231,7 @@ mtl_numEpochs = 1000  # Number of epochs for training the MTL network
 mtl_training_samples = 10000
 # Calculate the total number of iterations required for training based on batch size and samples count
 mtl_train_iters = int(mtl_training_samples / mtl_batchSize)
-mtl_log_freq = int(mtl_train_iters / 5)  # Frequency at which evaluation metrics are calculated during training
+mtl_log_freq = max(1, int(mtl_train_iters / 10))  # Frequency at which evaluation metrics are calculated during training (every 10% of epoch)
 mtl_min_loss = float('inf')  # Minimum DSM loss threshold to save the MTL network weights as checkpoints
 
 # Parameters for the Denoising AutoEncoder (DAE) component defined as the same way for MTL
@@ -234,7 +244,7 @@ dae_numEpochs = 1000
 # o.w. for input data as patches, the true number of training samples will be used accordingly
 dae_training_samples = 10000
 dae_train_iters = int(dae_training_samples / dae_batchSize)
-dae_log_freq = int(dae_train_iters / 5)
+dae_log_freq = max(1, int(dae_train_iters / 10))
 dae_min_loss = float('inf')  # Minimum loss (DSM noise) threshold to save the DAE network weights as checkpoints
 
 # MTL saved weights preloading mode. If True, then all MTL model will be initialized with saved weights before training
@@ -347,25 +357,23 @@ binary_classification_flag = len(label_codes) == 2 and set(label_codes) == {0, 1
 def setup_device():
     """Setup device configuration for single or multi-GPU training"""
     if torch.cuda.is_available():
+        device = torch.device(f'cuda:{MASTER_GPU}')
         if USE_MULTI_GPU and len(GPU_IDS) > 1:
-            device = torch.device(f'cuda:{MASTER_GPU}')
-            print(f"Using multi-GPU training on devices: {GPU_IDS}")
+            print(f"Using DataParallel multi-GPU training on devices: {GPU_IDS}")
         else:
-            device = torch.device(f'cuda:{GPU_IDS[0] if GPU_IDS else 0}')
             print(f"Using single GPU: {device}")
     else:
         device = torch.device('cpu')
         print("CUDA not available, using CPU")
     return device
 
-def setup_distributed():
-    """Setup distributed training if using multiple GPUs"""
-    if USE_MULTI_GPU and len(GPU_IDS) > 1 and torch.cuda.device_count() > 1:
-        if not dist.is_initialized():
-            # Initialize the process group for multi-GPU training
-            dist.init_process_group(backend='nccl')
-        return True
-    return False
+def setup_model_for_multi_gpu(model):
+    """Setup model for multi-GPU training using DataParallel"""
+    if USE_MULTI_GPU and len(GPU_IDS) > 1 and torch.cuda.device_count() > 1 and USE_DATA_PARALLEL:
+        # Use DataParallel for simpler multi-GPU setup
+        model = nn.DataParallel(model, device_ids=GPU_IDS)
+        print(f"Model wrapped with DataParallel for GPUs: {GPU_IDS}")
+    return model
 
 # Initialize device
 device = setup_device() if 'torch' in globals() else None

@@ -13,9 +13,7 @@ import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
-import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import DataLoader, Dataset
 
 from nets import UNet, setup_model_for_multi_gpu
 from utils import *
@@ -94,22 +92,11 @@ def create_dae_data_loaders(train_dsm_files, valid_dsm_files=None):
     # Create datasets
     train_dataset = DAEDataset(train_dsm_files)
     
-    # Setup samplers for distributed training
-    train_sampler = None
-    valid_sampler = None
-    
-    if USE_MULTI_GPU and torch.distributed.is_initialized():
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, shuffle=True)
-        if valid_dsm_files is not None:
-            valid_dataset = DAEDataset(valid_dsm_files)
-            valid_sampler = torch.utils.data.distributed.DistributedSampler(valid_dataset, shuffle=False)
-    
-    # Create data loaders
+    # Create data loaders for DataParallel (no distributed samplers needed)
     train_loader = DataLoader(
         train_dataset,
         batch_size=dae_batchSize,
-        shuffle=(train_sampler is None),
-        sampler=train_sampler,
+        shuffle=True,
         num_workers=4,
         pin_memory=True
     )
@@ -121,7 +108,6 @@ def create_dae_data_loaders(train_dsm_files, valid_dsm_files=None):
             valid_dataset,
             batch_size=dae_batchSize,
             shuffle=False,
-            sampler=valid_sampler,
             num_workers=4,
             pin_memory=True
         )
@@ -132,15 +118,8 @@ def create_dae_data_loaders(train_dsm_files, valid_dsm_files=None):
 def main():
     """Main DAE training function"""
     
-    # Initialize distributed training if using multiple GPUs
-    distributed = setup_distributed_training() if USE_MULTI_GPU else False
-    
-    # Setup device
-    if distributed:
-        device = torch.device(f'cuda:{torch.distributed.get_rank()}')
-        torch.cuda.set_device(device)
-    else:
-        device = setup_device()
+    # Setup device for DataParallel multi-GPU training
+    device = setup_device()
     
     # Keep track of computation time
     total_start = time.time()
@@ -176,11 +155,8 @@ def main():
         unet_model.load_state_dict(checkpoint['model_state_dict'])
         logger.info("Loaded pretrained DAE weights")
     
-    # Setup model for multi-GPU training
-    if distributed:
-        unet_model = DDP(unet_model, device_ids=[device])
-    elif USE_MULTI_GPU and len(GPU_IDS) > 1:
-        unet_model = nn.DataParallel(unet_model, device_ids=GPU_IDS)
+    # Setup model for multi-GPU training using DataParallel
+    unet_model = setup_model_for_multi_gpu(unet_model)
     
     # Define loss function
     if reg_loss == 'mse':
@@ -285,9 +261,7 @@ def main():
     total_time = time.time() - total_start
     logger.info(f"\\nDAE training completed in {total_time:.2f} seconds")
     
-    # Cleanup distributed training
-    if distributed:
-        cleanup_distributed()
+    # Training completed - no cleanup needed for DataParallel
 
 
 def train_dae_epoch(model, data_loader, optimizer, loss_fn, device, epoch, logger):
