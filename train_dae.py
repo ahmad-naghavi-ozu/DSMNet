@@ -7,7 +7,7 @@ import numpy as np
 import random
 import logging
 import os
-from datetime import datetime
+import datetime
 import time
 
 import torch
@@ -31,6 +31,10 @@ def set_seed(seed=42):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 set_seed(42)
 
@@ -39,7 +43,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(f"{dataset_name}_dae_train_pytorch_output.log", mode='w'),
+        logging.FileHandler(dae_log_file, mode='w'),
         logging.StreamHandler()
     ]
 )
@@ -64,6 +68,15 @@ class DAEDataset(torch.utils.data.Dataset):
         # Add noise to create noisy version
         noise = np.random.normal(0, self.noise_std, clean_dsm.shape).astype(np.float32)
         noisy_dsm = clean_dsm + noise
+        
+        # Convert to tensors
+        clean_tensor = torch.from_numpy(clean_dsm).unsqueeze(0).float()  # Add channel dimension
+        noisy_tensor = torch.from_numpy(noisy_dsm).unsqueeze(0).float()  # Add channel dimension
+        
+        return {
+            'clean': clean_tensor,
+            'noisy': noisy_tensor
+        }
         
         # Convert to tensors
         clean_tensor = torch_from_numpy(clean_dsm)
@@ -131,7 +144,7 @@ def main():
     
     # Keep track of computation time
     total_start = time.time()
-    current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    current_datetime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     logger.info(f'\\nDAE PyTorch training on {dataset_name} started at {current_datetime}!\\n')
     
     # Collect training and validation DSM data
@@ -319,8 +332,9 @@ def train_dae_epoch(model, data_loader, optimizer, loss_fn, device, epoch, logge
         rmse_sum += rmse.item()
         mae_sum += mae.item()
         
-        # Log progress
-        if batch_idx % (num_batches // 5) == 0:
+        # Log progress - handle small datasets safely
+        log_freq = max(1, num_batches // 5)  # Ensure log_freq is at least 1
+        if batch_idx % log_freq == 0:
             logger.info(f'Epoch: {epoch}, Batch: {batch_idx}/{num_batches}, '
                        f'Loss: {loss.item():.6f}, RMSE: {rmse.item():.6f}')
     

@@ -1,19 +1,7 @@
 #!/bin/bash
 
-# Complete PyTorcecho "Step 1: Training MTL model..."
-echo "==============================="
-EPOCHS=$MTL_EPOCHS BATCH_SIZE=$BATCH_SIZE LEARNING_RATE=$LEARNING_RATE ./run_train_mtl.sh
-
-echo ""
-echo "Step 2: Training DAE model..."
-echo "============================="
-EPOCHS=$DAE_EPOCHS BATCH_SIZE=$BATCH_SIZE LEARNING_RATE=$LEARNING_RATE ./run_train_dae.sh
-
-echo ""
-echo "Step 3: Testing complete pipeline..."
-echo "===================================="
-./run_test.shd testing pipeline
-# Usage: ./run_full_pipeline_pytorch.sh
+# Complete PyTorch DSMNet training and testing pipeline
+# Usage: ./run_full_pipeline.sh
 
 set -e
 
@@ -42,17 +30,17 @@ mkdir -p plots
 
 echo "Step 1: Training MTL model..."
 echo "==============================="
-EPOCHS=$MTL_EPOCHS BATCH_SIZE=$BATCH_SIZE LEARNING_RATE=$LEARNING_RATE ./run_train_mtl_pytorch.sh
+EPOCHS=$MTL_EPOCHS BATCH_SIZE=$BATCH_SIZE LEARNING_RATE=$LEARNING_RATE ./run_train_mtl.sh
 
 echo ""
 echo "Step 2: Training DAE model..."
 echo "============================="
-EPOCHS=$DAE_EPOCHS BATCH_SIZE=$BATCH_SIZE LEARNING_RATE=$LEARNING_RATE ./run_train_dae_pytorch.sh
+EPOCHS=$DAE_EPOCHS BATCH_SIZE=$BATCH_SIZE LEARNING_RATE=$LEARNING_RATE ./run_train_dae.sh
 
 echo ""
 echo "Step 3: Testing complete pipeline..."
 echo "===================================="
-BATCH_SIZE=$BATCH_SIZE ./run_test_pytorch.sh
+BATCH_SIZE=$BATCH_SIZE ./run_test.sh
 
 echo ""
 echo "=== Full Pipeline Completed Successfully ==="

@@ -4,9 +4,37 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
+import os
+import datetime
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 from config import *
+
+def save_checkpoint(model, optimizer, epoch, metric_value, checkpoint_path):
+    """
+    Save model checkpoint with state information
+    
+    Args:
+        model: PyTorch model to save
+        optimizer: PyTorch optimizer to save
+        epoch: Current training epoch
+        metric_value: Current metric value (loss or accuracy)
+        checkpoint_path: Path where to save the checkpoint
+    """
+    # Create checkpoint directory if it doesn't exist
+    os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+    
+    # Create checkpoint dictionary
+    checkpoint = {
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'metric_value': metric_value,
+        'timestamp': datetime.datetime.now().isoformat()
+    }
+    
+    # Save the checkpoint
+    torch.save(checkpoint, checkpoint_path)
 
 def compute_height_metrics_pytorch(predictions, targets):
     """
@@ -231,7 +259,7 @@ def plot_train_valid_metrics(epoch, train_metrics=None, valid_metrics=None,
     plt.tight_layout()
     
     # Save plot
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     plot_path = f'./plots/{model_type.lower()}_metrics_{dataset_name}_{timestamp}.png'
     os.makedirs('./plots', exist_ok=True)
     plt.savefig(plot_path, dpi=150, bbox_inches='tight')

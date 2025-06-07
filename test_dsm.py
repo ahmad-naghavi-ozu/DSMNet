@@ -6,7 +6,7 @@ from config import *
 import numpy as np
 import os
 import time
-from datetime import datetime
+import datetime
 import logging
 
 import torch
@@ -85,7 +85,7 @@ def test_dsm(mtl_model=None, dae_model=None, save_predictions=True, save_visuali
     # Load DAE model if correction is enabled
     if correction and dae_model is None:
         logger.info("Loading DAE model for correction...")
-        dae_model = UNet(in_channels=1, out_channels=1)
+        dae_model = Autoencoder()
         
         checkpoint_path = f"{corrCheckPointPath}_best.pth"
         if not os.path.exists(checkpoint_path):
@@ -137,11 +137,27 @@ def test_dsm(mtl_model=None, dae_model=None, save_predictions=True, save_visuali
             sem_targets = batch_data['sem'].to(device)
             
             # MTL forward pass
-            dsm_pred, sem_pred, norm_pred, edge_pred = mtl_model(inputs, 'full', training=False)
+            dsm_pred, sem_pred, norm_pred, edge_pred = mtl_model(inputs, 'full', False)
             
             # Apply DAE correction if enabled
             if correction and dae_model is not None:
-                dsm_pred = dae_model(dsm_pred)
+                # Create multi-channel input for DAE as in TensorFlow implementation
+                correction_list = [dsm_pred]
+                if sem_flag and sem_pred is not None:
+                    correction_list.append(sem_pred)
+                if norm_flag and norm_pred is not None:
+                    correction_list.append(norm_pred)
+                if edge_flag and edge_pred is not None:
+                    correction_list.append(edge_pred)
+                correction_list.append(inputs)  # RGB input
+                
+                # Concatenate along channel dimension
+                correction_input = torch.cat(correction_list, dim=1)
+                
+                # Get noise prediction from DAE
+                noise = dae_model(correction_input)
+                # Apply correction: corrected_dsm = predicted_dsm - noise
+                dsm_pred = dsm_pred - noise
             
             inference_time = time.time() - start_time
             inference_times.append(inference_time)
@@ -323,7 +339,7 @@ def save_test_metrics(metrics, output_path):
     
     with open(output_path, 'w') as f:
         f.write(f"DSMNet Test Results - {dataset_name}\\n")
-        f.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\\n")
+        f.write(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\\n")
         f.write(f"{'='*60}\\n\\n")
         
         # Height metrics
@@ -364,7 +380,7 @@ def main():
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler(f"{dataset_name}_test_pytorch_output.log", mode='w'),
+            logging.FileHandler(test_log_file, mode='w'),
             logging.StreamHandler()
         ]
     )

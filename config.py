@@ -39,32 +39,6 @@ large_tile_mode = dataset_name in large_tile_data
 rgb_label_datasets = ['Vaihingen', 'Vaihingen_crp256']  # Add other RGB-triplet datasets here
 uses_rgb_labels = dataset_name in rgb_label_datasets
 
-# Define a combined dictionary with (cropSize, batchSize) tuples for each dataset
-dataset_configs = {
-    'Vaihingen': (320, 4),
-    'DFC2018': (320, 4),
-    'Vaihingen_crp256': (256, 10),
-    'DFC2018_crp256': (256, 10),
-    'DFC2019_crp256': (256, 10),
-    'DFC2019_crp512': (512, 2),
-    'DFC2023': (512, 2),
-}
-
-# Get cropSize and batchSize based on dataset name, with fallback logic
-# First try exact match, then prefix match, then default to (256, 2)
-if dataset_name in dataset_configs:
-    cropSize, batch_size = dataset_configs[dataset_name]
-else:
-    # Find by prefix match if exact match not found
-    matching_datasets = [d for d in dataset_configs.keys() if dataset_name.startswith(d)]
-    if matching_datasets:
-        # Sort by length descending to get the most specific match
-        best_match = sorted(matching_datasets, key=len, reverse=True)[0]
-        cropSize, batch_size = dataset_configs[best_match]
-    else:
-        # Default values if no match found
-        cropSize, batch_size = 256, 2
-
 # Define the flag for synthetic aperture radar (SAR) channel for the input tensor.
 # This could be the case for DFC2023 in which the input RGB and the 1-channel SAR images are fused together 
 # to provide the model with more precise information.
@@ -77,6 +51,164 @@ sar_mode = False
 
 # Normalization flag for input RGB, DSM, etc
 normalize_flag = False
+
+# Set flags for additive heads of MTL, viz semantic segmentation, surface normals, and edgemaps
+sem_flag, norm_flag, edge_flag = True, True, False
+
+# Set flag for MTL heads interconnection mode, either fully intertwined ('full') or just for the DSM head ('dsm')
+mtl_head_mode = 'dsm'  # 'full' or 'dsm'
+
+# MTL backbone frozen mode (define early for batch size calculation)
+mtl_bb_freeze = False
+
+# Dynamic batch size calculation based on model complexity factors
+def calculate_model_complexity_factor():
+    """
+    Calculate memory complexity multiplier based on active model components.
+    Returns a factor that will be used to adjust batch sizes.
+    """
+    complexity_factor = 1.0
+    
+    # MTL head mode impact (most significant factor)
+    if mtl_head_mode == 'full':
+        complexity_factor *= 3.5  # Full interconnected heads use ~3.5x more memory
+    else:  # 'dsm' mode
+        complexity_factor *= 1.0  # Base complexity
+    
+    # Active heads impact (affects concatenation complexity in 'full' mode)
+    active_heads = sum([sem_flag, norm_flag, edge_flag])
+    if mtl_head_mode == 'full':
+        # In full mode, each additional head multiplies concatenation channels
+        complexity_factor *= (1.0 + active_heads * 0.3)  # ~30% increase per additional head
+    else:
+        # In dsm mode, additional heads have minimal impact
+        complexity_factor *= (1.0 + active_heads * 0.1)  # ~10% increase per additional head
+    
+    # SAR mode impact (additional input channel processing)
+    if sar_mode:
+        complexity_factor *= 1.2  # 20% increase for SAR processing
+    
+    # Large tile mode impact (more complex data augmentation patterns)
+    if large_tile_mode:
+        complexity_factor *= 1.1  # 10% increase for large tile processing
+    
+    # Frozen backbone reduces memory usage (no gradient storage for backbone)
+    if mtl_bb_freeze:
+        complexity_factor *= 0.8  # 20% reduction when backbone is frozen
+    
+    return complexity_factor
+
+def calculate_dynamic_batch_size(base_crop_size, base_batch_per_gpu, dataset_size=None):
+    """
+    Calculate dynamic batch size based on crop size and model complexity.
+    
+    Args:
+        base_crop_size: Base crop size for the dataset
+        base_batch_size_per_gpu: Base batch size per GPU for this crop size
+        dataset_size: Number of training samples (for small dataset optimization)
+    
+    Returns:
+        Tuple of (total_batch_size, complexity_factor, adjusted_batch_per_gpu)
+    """
+    num_gpus = len(GPU_IDS) if USE_MULTI_GPU else 1
+    complexity_factor = calculate_model_complexity_factor()
+    
+    # Calculate memory usage scaling with optimized factors
+    # Memory scales with crop_size^2 * complexity_factor
+    crop_memory_factor = (base_crop_size / 256) ** 2  # Normalize to 256x256 baseline
+    
+    # Apply less conservative scaling for better GPU utilization
+    # The complexity factors were too conservative for your available memory
+    if complexity_factor < 1.5:  # Low complexity (dsm mode)
+        effective_complexity = complexity_factor * 0.7  # Reduce impact by 30%
+    elif complexity_factor < 2.5:  # Medium complexity
+        effective_complexity = complexity_factor * 0.8  # Reduce impact by 20%
+    else:  # High complexity (full mode)
+        effective_complexity = complexity_factor * 0.9  # Reduce impact by 10%
+    
+    total_memory_factor = crop_memory_factor * effective_complexity
+    
+    # Adjust batch size inversely to memory requirements
+    adjusted_batch_per_gpu = max(1, int(base_batch_per_gpu / total_memory_factor))
+    
+    # Special handling for small datasets
+    if dataset_size is not None:
+        # For small datasets, ensure we have at least 4-5 batches per epoch for stability
+        min_batches_per_epoch = 5
+        max_batch_size_per_gpu = max(1, dataset_size // (min_batches_per_epoch * num_gpus))
+        if max_batch_size_per_gpu < adjusted_batch_per_gpu:
+            adjusted_batch_per_gpu = max_batch_size_per_gpu
+            print(f"Reducing batch size for small dataset ({dataset_size} samples) to ensure {min_batches_per_epoch}+ batches per epoch")
+    
+    # Apply GPU memory-based boost for better utilization
+    # With 7-10GB available per GPU, we can afford larger batch sizes
+    if adjusted_batch_per_gpu < 4 and (dataset_size is None or dataset_size >= 100):  # Only boost for larger datasets
+        memory_boost = min(3, 4 // adjusted_batch_per_gpu)  # Boost by 2-3x
+        adjusted_batch_per_gpu = min(base_batch_per_gpu, adjusted_batch_per_gpu * memory_boost)
+    
+    total_batch_size = adjusted_batch_per_gpu * num_gpus
+    
+    # Ensure minimum batch size
+    total_batch_size = max(num_gpus, total_batch_size)
+    
+    return total_batch_size, complexity_factor, adjusted_batch_per_gpu
+
+# Known small datasets that need special batch size handling
+small_datasets = {
+    'DFC2023Amini': 20,  # Only 20 training samples
+    # Add other small datasets here as needed
+}
+
+# Get dataset size for optimization
+dataset_size = small_datasets.get(dataset_name, None)
+
+# Base dataset configurations optimized for available GPU memory (7-10GB per GPU)
+# These will be dynamically adjusted based on actual configuration flags
+base_dataset_configs = {
+    # Optimized base batch sizes for better GPU utilization
+    # With 7-10GB available memory per GPU, we can afford larger batch sizes
+    'Vaihingen': (320, 24),          # Increased from 16 to 24 for 320x320
+    'DFC2018': (320, 24),            # Increased from 16 to 24 for 320x320
+    
+    'Vaihingen_crp256': (256, 32),   # Increased from 24 to 32 for 256x256
+    'DFC2018_crp256': (256, 32),     # Increased from 24 to 32 for 256x256  
+    'DFC2019_crp256': (256, 32),     # Increased from 24 to 32 for 256x256
+    
+    'DFC2019_crp512': (512, 12),     # Increased from 8 to 12 for 512x512
+    'DFC2023': (512, 12),            # Increased from 8 to 12 for 512x512
+}
+
+# Get base cropSize and batch_per_gpu, then calculate dynamic batch size
+if dataset_name in base_dataset_configs:
+    cropSize, base_batch_per_gpu = base_dataset_configs[dataset_name]
+else:
+    # Find by prefix match if exact match not found
+    matching_datasets = [d for d in base_dataset_configs.keys() if dataset_name.startswith(d)]
+    if matching_datasets:
+        # Sort by length descending to get the most specific match
+        best_match = sorted(matching_datasets, key=len, reverse=True)[0]
+        cropSize, base_batch_per_gpu = base_dataset_configs[best_match]
+    else:
+        # Conservative fallback for unknown datasets
+        cropSize, base_batch_per_gpu = 256, 4  # Very conservative base
+
+# Calculate dynamic batch size based on actual configuration
+batch_size, complexity_factor, batch_per_gpu = calculate_dynamic_batch_size(cropSize, base_batch_per_gpu, dataset_size)
+
+# Print dynamic batch size configuration results
+print(f"\n=== Dynamic Batch Size Configuration ===")
+print(f"Dataset: {dataset_name}")
+print(f"Crop size: {cropSize}x{cropSize}")
+print(f"MTL head mode: {mtl_head_mode}")
+print(f"Active heads: sem={sem_flag}, norm={norm_flag}, edge={edge_flag}")
+print(f"SAR mode: {sar_mode}")
+print(f"Large tile mode: {large_tile_mode}")
+print(f"Backbone frozen: {mtl_bb_freeze}")
+print(f"Model complexity factor: {complexity_factor:.2f}")
+print(f"Base batch per GPU: {base_batch_per_gpu}")
+print(f"Adjusted batch per GPU: {batch_per_gpu}")
+print(f"Total batch size: {batch_size} (across {len(GPU_IDS) if USE_MULTI_GPU else 1} GPUs)")
+print(f"========================================\n")
 
 # Parameters for the Multitask Learning (MTL) component
 mtl_lr_decay = False  # Flag to enable/disable learning rate decay
@@ -107,8 +239,6 @@ dae_min_loss = float('inf')  # Minimum loss (DSM noise) threshold to save the DA
 
 # MTL saved weights preloading mode. If True, then all MTL model will be initialized with saved weights before training
 mtl_preload = False
-# MTL backbone frozen mode. If True, then the MTL backbone weights will not get updated during training to save time
-mtl_bb_freeze = False
 
 # DAE saved weights preloading mode. If True, then all DAE model will be initialized with saved weights before training
 dae_preload = False
@@ -118,6 +248,17 @@ dae_preload = False
 sar_indicator = ('+sar' if sar_mode else '-sar') if sar_path_indicator else '.'
 predCheckPointPath = f'./checkpoints/{dataset_name}/{sar_indicator}/mtl'  # MTL checkpoints path
 corrCheckPointPath = f'./checkpoints/{dataset_name}/{sar_indicator}/refinement'  # DAE checkpoints path
+
+# Log file directory configuration
+log_output_dir = f'./output/{dataset_name}/_logs'
+
+# Ensure log directory exists
+os.makedirs(log_output_dir, exist_ok=True)
+
+# Define log file paths
+mtl_log_file = f'{log_output_dir}/{dataset_name}_mtl_train_pytorch_output.log'
+dae_log_file = f'{log_output_dir}/{dataset_name}_dae_train_pytorch_output.log'
+test_log_file = f'{log_output_dir}/{dataset_name}_test_pytorch_output.log'
 
 # Initialize the epoch counter for the last saved weights when validation is disabled
 last_epoch_saved = None 
@@ -167,12 +308,6 @@ huber_delta = 0.1  # Huber loss hyperparameter, delta
 roof_height_threshold = 50
 # Canny edge detection algorithm low and high thresholds for detecting potential edges for rooftops
 canny_lt, canny_ht = 50, 150
-
-# Set flags for additive heads of MTL, viz semantic segmentation, surface normals, and edgemaps
-sem_flag, norm_flag, edge_flag = True, True, False
-
-# Set flag for MTL heads interconnection mode, either fully intertwined ('full') or just for the DSM head ('dsm')
-mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 
 # Set flag for applying denoising autoencoder during testing. 
 # Note: If set to True, this will affect train/valid error computations

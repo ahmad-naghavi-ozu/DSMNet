@@ -8,7 +8,7 @@ import numpy as np
 import random
 import logging
 import os
-from datetime import datetime
+import datetime
 import time
 from skimage import io
 
@@ -35,6 +35,10 @@ def set_seed(seed=42):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 set_seed(42)
 
@@ -43,7 +47,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(f"{dataset_name}_mtl_train_pytorch_output.log", mode='w'),
+        logging.FileHandler(mtl_log_file, mode='w'),
         logging.StreamHandler()
     ]
 )
@@ -62,7 +66,7 @@ def main():
     
     # Keep track of computation time
     total_start = time.time()
-    current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    current_datetime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     logger.info(f'\nMTL PyTorch training on {dataset_name} started at {current_datetime}!\n')
     
     # Collect training and validation data
@@ -262,7 +266,7 @@ def train_epoch(model, data_loader, optimizer, dsm_loss_fn, sem_loss_fn, norm_lo
             edge_targets = edge_targets.to(device)
         
         # Forward pass
-        dsm_out, sem_out, norm_out, edge_out = model(inputs, mtl_head_mode, training=True)
+        dsm_out, sem_out, norm_out, edge_out = model(inputs, mtl_head_mode, True)
         
         # Compute losses
         L1 = dsm_loss_fn(dsm_out.squeeze(), dsm_targets.squeeze())
@@ -275,7 +279,7 @@ def train_epoch(model, data_loader, optimizer, dsm_loss_fn, sem_loss_fn, norm_lo
             rmse_per_sample = torch.sqrt(mse_per_sample)
             batch_rmse = rmse_per_sample.mean()
         
-        L2 = sem_loss_fn(sem_out, sem_targets.long()) if sem_flag and sem_out is not None else torch.tensor(0.0, device=device)
+        L2 = sem_loss_fn(sem_out, sem_targets.squeeze().long()) if sem_flag and sem_out is not None else torch.tensor(0.0, device=device)
         L3 = norm_loss_fn(norm_out, norm_targets) if norm_flag and norm_out is not None and norm_targets is not None else torch.tensor(0.0, device=device)
         L4 = edge_loss_fn(edge_out.squeeze(), edge_targets.squeeze()) if edge_flag and edge_out is not None and edge_targets is not None else torch.tensor(0.0, device=device)
         
@@ -301,8 +305,9 @@ def train_epoch(model, data_loader, optimizer, dsm_loss_fn, sem_loss_fn, norm_lo
         edge_loss_sum += L4.item()
         rmse_sum += batch_rmse.item()
         
-        # Log progress
-        if batch_idx % (num_batches // 5) == 0:
+        # Log progress - handle small datasets safely
+        log_freq = max(1, num_batches // 5)  # Ensure log_freq is at least 1
+        if batch_idx % log_freq == 0:
             logger.info(f'Epoch: {epoch}, Batch: {batch_idx}/{num_batches}, '
                        f'Loss: {loss.item():.6f}, RMSE: {batch_rmse.item():.6f}')
     
@@ -351,11 +356,11 @@ def validate_epoch(model, data_loader, dsm_loss_fn, sem_loss_fn, norm_loss_fn, e
                 edge_targets = edge_targets.to(device)
             
             # Forward pass
-            dsm_out, sem_out, norm_out, edge_out = model(inputs, mtl_head_mode, training=False)
+            dsm_out, sem_out, norm_out, edge_out = model(inputs, mtl_head_mode, False)
             
             # Compute losses
             L1 = dsm_loss_fn(dsm_out.squeeze(), dsm_targets.squeeze())
-            L2 = sem_loss_fn(sem_out, sem_targets.long()) if sem_flag and sem_out is not None else torch.tensor(0.0, device=device)
+            L2 = sem_loss_fn(sem_out, sem_targets.squeeze().long()) if sem_flag and sem_out is not None else torch.tensor(0.0, device=device)
             L3 = norm_loss_fn(norm_out, norm_targets) if norm_flag and norm_out is not None and norm_targets is not None else torch.tensor(0.0, device=device)
             L4 = edge_loss_fn(edge_out.squeeze(), edge_targets.squeeze()) if edge_flag and edge_out is not None and edge_targets is not None else torch.tensor(0.0, device=device)
             

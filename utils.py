@@ -43,7 +43,7 @@ class DSMDataset(Dataset):
         
         # Load SAR if available
         sar_img = None
-        if self.sar_files[idx] is not None:
+        if self.sar_files[idx] is not None and self.sar_files[idx] != "":
             sar_img = load_image(self.sar_files[idx], normalize_flag)
         
         # Load DSM
@@ -56,7 +56,7 @@ class DSMDataset(Dataset):
         
         # Generate patches if large tile mode
         if large_tile_mode:
-            rgb_patch, dsm_patch, sem_patch, norm_patch, edge_patch = \
+            rgb_patch, dsm_patch, sem_patch, norm_patch, edge_patch, patch_coords = \
                 generate_patch_from_large_tile(rgb_img, sar_img, dsm_img, sem_img)
         else:
             rgb_patch = rgb_img
@@ -64,6 +64,7 @@ class DSMDataset(Dataset):
             sem_patch = sem_img
             norm_patch = compute_surface_normals(dsm_patch) if norm_flag else None
             edge_patch = compute_edge_map(dsm_patch) if edge_flag else None
+            patch_coords = (0, 0)  # Default coordinates for non-large-tile mode
         
         # Convert to tensors
         rgb_tensor = torch_from_numpy(rgb_patch)
@@ -72,7 +73,11 @@ class DSMDataset(Dataset):
         
         # Combine RGB and SAR if available
         if sar_mode and sar_img is not None:
-            sar_patch = sar_img if not large_tile_mode else generate_sar_patch_from_large_tile(sar_img)
+            if large_tile_mode:
+                # Use the same coordinates for SAR patch as used for RGB patch
+                sar_patch = generate_sar_patch_from_large_tile(sar_img, patch_coords[0], patch_coords[1])
+            else:
+                sar_patch = sar_img
             sar_tensor = torch_from_numpy(sar_patch)
             input_tensor = torch.cat([rgb_tensor, sar_tensor], dim=0)
         else:
@@ -153,8 +158,36 @@ def collect_tilenames(mode):
     # Collection logic remains the same as original utils.py
     # [Implementation details would be the same as in the original file]
     
+    # For DFC2023 datasets (including DFC2023Amini)
+    if dataset_name.startswith('DFC2023') and mode in ['train', 'valid', 'test']:
+        rgb_path = base_path + 'rgb/'
+        dsm_path = base_path + 'dsm/'
+        sem_path = base_path + 'sem/'
+        sar_path = base_path + 'sar/' if sar_mode else None
+        
+        if os.path.exists(rgb_path):
+            for filename in os.listdir(rgb_path):
+                if filename.endswith('.tif'):
+                    # Get the base name without extension
+                    base_name = filename[:-4]  # Remove .tif extension
+                    
+                    # Check if corresponding DSM and SEM files exist
+                    dsm_file = dsm_path + filename
+                    sem_file = sem_path + filename
+                    
+                    if os.path.exists(dsm_file) and os.path.exists(sem_file):
+                        all_rgb.append(rgb_path + filename)
+                        all_dsm.append(dsm_file)
+                        all_sem.append(sem_file)
+                        
+                        # Add SAR if in SAR mode
+                        if sar_mode and sar_path and os.path.exists(sar_path + filename):
+                            all_sar.append(sar_path + filename)
+                        else:
+                            all_sar.append("")  # Empty placeholder if no SAR
+    
     # For brevity, I'll include the DFC2019 example:
-    if dataset_name.startswith('DFC2019') and mode in ['train', 'valid', 'test']:
+    elif dataset_name.startswith('DFC2019') and mode in ['train', 'valid', 'test']:
         for filename in os.listdir(base_path + 'RGB/'):
             if filename.endswith('.tif'):
                 base_name = '_'.join(filename.split('_')[:-2])
@@ -231,39 +264,55 @@ def create_data_loaders(train_data, valid_data=None, test_data=None):
 
 def load_image(image_path, normalize=False):
     """Load and preprocess image"""
-    if image_path.lower().endswith(('.jpg', '.jpeg')):
-        img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-        img = np.expand_dims(img, axis=-1) if len(img.shape) == 2 else img
-    else:
-        img = io.imread(image_path)
-        if len(img.shape) == 2:
-            img = np.expand_dims(img, axis=-1)
-    
-    # Normalize if requested
-    if normalize:
-        img = img.astype(np.float32) / 255.0
-    else:
-        img = img.astype(np.float32)
-    
-    return img
+    try:
+        if image_path.lower().endswith(('.jpg', '.jpeg')):
+            img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            if img is None:
+                raise FileNotFoundError(f"Could not load image: {image_path}")
+            img = np.expand_dims(img, axis=-1) if len(img.shape) == 2 else img
+        else:
+            img = io.imread(image_path)
+            if img is None:
+                raise FileNotFoundError(f"Could not load image: {image_path}")
+            if len(img.shape) == 2:
+                img = np.expand_dims(img, axis=-1)
+        
+        # Normalize if requested
+        if normalize:
+            img = img.astype(np.float32) / 255.0
+        else:
+            img = img.astype(np.float32)
+        
+        return img
+    except Exception as e:
+        print(f"Error loading image {image_path}: {str(e)}")
+        raise
 
 
 def load_semantic_labels(sem_path):
     """Load semantic segmentation labels"""
-    if uses_rgb_labels:
-        # For RGB triplet labels (like Vaihingen)
-        sem_img = io.imread(sem_path)
-        if len(sem_img.shape) == 3:
-            # Convert RGB to class indices
-            sem_processed = rgb_to_class_indices(sem_img, label_codes)
+    try:
+        if uses_rgb_labels:
+            # For RGB triplet labels (like Vaihingen)
+            sem_img = io.imread(sem_path)
+            if sem_img is None:
+                raise FileNotFoundError(f"Could not load semantic labels: {sem_path}")
+            if len(sem_img.shape) == 3:
+                # Convert RGB to class indices
+                sem_processed = rgb_to_class_indices(sem_img, label_codes)
+            else:
+                sem_processed = sem_img
         else:
+            # For direct class labels
+            sem_img = io.imread(sem_path)
+            if sem_img is None:
+                raise FileNotFoundError(f"Could not load semantic labels: {sem_path}")
             sem_processed = sem_img
-    else:
-        # For direct class labels
-        sem_img = io.imread(sem_path)
-        sem_processed = sem_img
-    
-    return sem_processed.astype(np.int64)
+        
+        return sem_processed.astype(np.int64)
+    except Exception as e:
+        print(f"Error loading semantic labels {sem_path}: {str(e)}")
+        raise
 
 
 def rgb_to_class_indices(rgb_image, label_codes):
@@ -307,7 +356,20 @@ def generate_patch_from_large_tile(rgb_img, sar_img, dsm_img, sem_img):
     norm_patch = compute_surface_normals(dsm_patch) if norm_flag else None
     edge_patch = compute_edge_map(dsm_patch) if edge_flag else None
     
-    return rgb_patch, dsm_patch, sem_patch, norm_patch, edge_patch
+    return rgb_patch, dsm_patch, sem_patch, norm_patch, edge_patch, (top, left)
+
+
+def generate_sar_patch_from_large_tile(sar_img, top=None, left=None):
+    """Generate SAR patch from large tile using same patch coordinates"""
+    h, w = sar_img.shape[:2]
+    
+    # Use provided coordinates or generate random ones
+    if top is None or left is None:
+        top = random.randint(0, h - cropSize)
+        left = random.randint(0, w - cropSize)
+    
+    sar_patch = sar_img[top:top+cropSize, left:left+cropSize]
+    return sar_patch
 
 
 def compute_surface_normals(dsm_patch):
@@ -346,6 +408,86 @@ def compute_edge_map(dsm_patch):
     edges = edges.astype(np.float32) / 255.0
     
     return np.expand_dims(edges, axis=-1)
+
+
+def normalize_array(arr, min_val, max_val):
+    """Normalize array to specified range"""
+    arr_min = np.min(arr)
+    arr_max = np.max(arr)
+    
+    if arr_max == arr_min:
+        return np.zeros_like(arr)
+    
+    # Normalize to [0, 1] first
+    normalized = (arr - arr_min) / (arr_max - arr_min)
+    
+    # Scale to desired range
+    return normalized * (max_val - min_val) + min_val
+
+
+def sem_to_onehot(sem_tensor):
+    """Convert semantic segmentation to one-hot encoding"""
+    if len(sem_tensor.shape) == 3 and sem_tensor.shape[-1] == 1:
+        sem_tensor = sem_tensor.squeeze(-1)
+    
+    height, width = sem_tensor.shape
+    one_hot = np.zeros((height, width, sem_k), dtype=np.float32)
+    
+    for class_idx in range(sem_k):
+        one_hot[:, :, class_idx] = (sem_tensor == class_idx).astype(np.float32)
+    
+    return one_hot
+
+
+def convert_sem_onehot_to_annotation(sem_onehot):
+    """Convert one-hot semantic segmentation back to class indices"""
+    return np.argmax(sem_onehot, axis=-1)
+
+
+def correctTile(tile):
+    """
+    Corrects the values in a tile array based on specified thresholds.
+    This is usually the case for datasets with both DSM and DEM available.
+    """
+    tile = tile.copy()
+    tile[tile > 1000] = -123456
+    tile[tile == -123456] = np.max(tile)
+    tile[tile < -1000] = 123456
+    tile[tile == 123456] = np.min(tile)
+    return tile
+
+
+def gaussian_kernel(width, height, sigma=0.2, mu=0.0):
+    """Generate 2D Gaussian kernel for smooth blending"""
+    x = np.arange(0, width, 1, float)
+    y = np.arange(0, height, 1, float)
+    y = y[:, np.newaxis]
+    
+    # Center coordinates
+    x0 = width // 2
+    y0 = height // 2
+    
+    # Generate Gaussian
+    kernel = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma ** 2))
+    return kernel
+
+
+def sliding_window(image, step, window_size):
+    """Generate sliding window coordinates for patch extraction"""
+    h, w = image.shape[:2]
+    window_h, window_w = window_size
+    
+    coordinates = []
+    for y in range(0, h - window_h + 1, step):
+        for x in range(0, w - window_w + 1, step):
+            # Ensure we don't go out of bounds
+            y2 = min(y + window_h, h)
+            x2 = min(x + window_w, w)
+            y1 = y2 - window_h
+            x1 = x2 - window_w
+            coordinates.append((x1, x2, y1, y2))
+    
+    return coordinates
 
 
 def save_checkpoint(model, optimizer, epoch, loss, filepath):
@@ -413,5 +555,331 @@ def cleanup_distributed():
         torch.distributed.destroy_process_group()
 
 
-# Add other utility functions as needed...
-# These would include functions for data augmentation, visualization, etc.
+def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, mtl_flag):
+    """
+    Generate training batches for multi-task learning from RGB, SAR, DSM and semantic segmentation data.
+    Converted from TensorFlow to PyTorch implementation.
+    """
+    rgb_batch = []
+    dsm_batch = []
+    sem_batch = []
+    norm_batch = []
+    edge_batch = []
+
+    # Select and preprocess a random input tile for batch random selection, if the input image is large
+    if large_tile_mode:
+        idx = random.randint(0, len(train_rgb) - 1)
+        
+        if dataset_name == 'Vaihingen':
+            rgb_tile = np.array(Image.open(train_rgb[idx]))
+            rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+            dsm_tile = np.array(Image.open(train_dsm[idx]))
+            dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
+
+            if mtl_flag:
+                sem_tile = np.array(Image.open(train_sem[idx]))
+                if norm_flag:
+                    norm_tile = compute_surface_normals(dsm_tile)
+                    norm_tile = norm_tile if normalize_flag else (norm_tile * 255).astype(np.uint8)
+                if edge_flag:
+                    edge_tile = compute_edge_map(dsm_tile)
+                    edge_tile = normalize_array(edge_tile, 0, 1) if normalize_flag else edge_tile
+
+        elif dataset_name == 'DFC2018':
+            rgb_tile = np.array(Image.open(train_rgb[idx]))
+            rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+            dsm_tile = np.array(Image.open(train_dsm[2 * idx]))
+            dem_tile = np.array(Image.open(train_dsm[2 * idx + 1]))
+            dsm_tile = correctTile(dsm_tile)
+            dem_tile = correctTile(dem_tile)
+            dsm_tile = dsm_tile - dem_tile  # nDSM calculation
+            dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
+
+            if mtl_flag:
+                sem_tile = np.array(Image.open(train_sem[idx]))
+                if norm_flag:
+                    norm_tile = compute_surface_normals(dsm_tile)
+                    norm_tile = norm_tile if normalize_flag else (norm_tile * 255).astype(np.uint8)
+                if edge_flag:
+                    edge_tile = compute_edge_map(dsm_tile)
+                    edge_tile = normalize_array(edge_tile, 0, 1) if normalize_flag else edge_tile
+
+    # Generate or select patches
+    for i in range(mtl_batchSize):
+        if large_tile_mode:
+            # Generate random patches from large tiles
+            h, w = rgb_tile.shape[:2]
+            r = random.randint(0, h - cropSize)
+            c = random.randint(0, w - cropSize)
+            
+            rgb = rgb_tile[r:r + cropSize, c:c + cropSize]
+            dsm = dsm_tile[r:r + cropSize, c:c + cropSize]
+            
+            if mtl_flag:
+                sem = sem_tile[r:r + cropSize, c:c + cropSize]
+                if norm_flag:
+                    norm = norm_tile[r:r + cropSize, c:c + cropSize]
+                if edge_flag:
+                    edge = edge_tile[r:r + cropSize, c:c + cropSize]
+        else:
+            # Choose batch items in order for patch-based datasets
+            if dataset_name.startswith('DFC2019'):
+                rgb = np.array(Image.open(train_rgb[(iter - 1) * mtl_batchSize + i]))
+                rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
+                dsm = np.array(Image.open(train_dsm[(iter - 1) * mtl_batchSize + i]))
+                dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
+                
+                if mtl_flag:
+                    sem = np.array(Image.open(train_sem[(iter - 1) * mtl_batchSize + i]))
+                    if norm_flag:
+                        norm = compute_surface_normals(dsm)
+                        norm = norm if normalize_flag else (norm * 255).astype(np.uint8)
+                    if edge_flag:
+                        edge = compute_edge_map(dsm)
+                        edge = normalize_array(edge, 0, 1) if normalize_flag else edge
+
+            elif dataset_name.startswith('DFC2023'):
+                rgb = np.array(Image.open(train_rgb[(iter - 1) * mtl_batchSize + i]))
+                rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
+                
+                if sar_mode:
+                    sar = np.array(Image.open(train_sar[(iter - 1) * mtl_batchSize + i]))
+                    sar = normalize_array(sar, 0, 1) if normalize_flag else sar
+                    rgb = np.dstack((rgb, sar))
+                
+                dsm = np.array(Image.open(train_dsm[(iter - 1) * mtl_batchSize + i]))
+                dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
+
+                if mtl_flag:
+                    sem = np.array(Image.open(train_sem[(iter - 1) * mtl_batchSize + i]))
+                    if norm_flag:
+                        norm = compute_surface_normals(dsm)
+                        norm = norm if normalize_flag else (norm * 255).astype(np.uint8)
+                    if edge_flag:
+                        edge = compute_edge_map(dsm)
+                        edge = normalize_array(edge, 0, 1) if normalize_flag else edge
+
+            elif dataset_name.startswith('Vaihingen_crp256'):
+                rgb = np.array(Image.open(train_rgb[(iter - 1) * mtl_batchSize + i]))
+                rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
+                dsm = np.array(Image.open(train_dsm[(iter - 1) * mtl_batchSize + i]))
+                dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
+                
+                if mtl_flag:
+                    sem = np.array(Image.open(train_sem[(iter - 1) * mtl_batchSize + i]))
+                    if norm_flag:
+                        norm = compute_surface_normals(dsm)
+                        norm = norm if normalize_flag else (norm * 255).astype(np.uint8)
+                    if edge_flag:
+                        edge = compute_edge_map(dsm)
+                        edge = normalize_array(edge, 0, 1) if normalize_flag else edge
+
+        # Append to batches
+        rgb_batch.append(rgb)
+        dsm_batch.append(dsm)
+        if mtl_flag:
+            sem_batch.append(sem_to_onehot(sem))
+            if norm_flag:
+                norm_batch.append(norm)
+            if edge_flag:
+                edge_batch.append(edge)
+
+    # Convert to numpy arrays
+    rgb_batch = np.array(rgb_batch)
+    dsm_batch = np.array(dsm_batch)[..., np.newaxis]
+    
+    if mtl_flag:
+        sem_batch = np.array(sem_batch)
+        if norm_flag:
+            norm_batch = np.array(norm_batch)
+        if edge_flag:
+            edge_batch = np.array(edge_batch)[..., np.newaxis]
+    
+    return rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch
+
+
+def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
+    """
+    Load and preprocess test tiles from different datasets.
+    Converted from TensorFlow to PyTorch implementation.
+    """
+    if dataset_name == 'Vaihingen':
+        rgb_tile = np.array(Image.open(test_rgb[tile]))
+        rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+        dsm_tile = np.array(Image.open(test_dsm[tile]))
+        dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
+        sem_tile = np.array(Image.open(test_sem[tile]))
+
+    elif dataset_name == 'DFC2018':
+        rgb_tile = np.array(Image.open(test_rgb[tile]))
+        rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+        dsm_tile = np.array(Image.open(test_dsm[2 * tile]))
+        dem_tile = np.array(Image.open(test_dsm[2 * tile + 1]))
+        dsm_tile = correctTile(dsm_tile)
+        dem_tile = correctTile(dem_tile)
+        dsm_tile = dsm_tile - dem_tile  # nDSM calculation
+        dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
+        sem_tile = np.array(Image.open(test_sem[tile]))
+
+    elif dataset_name.startswith('DFC2019'):
+        rgb_tile = np.array(Image.open(test_rgb[tile]))
+        rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+        dsm_tile = np.array(Image.open(test_dsm[tile]))
+        dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
+        sem_tile = np.array(Image.open(test_sem[tile]))
+
+    elif dataset_name.startswith('DFC2023'):
+        rgb_tile = np.array(Image.open(test_rgb[tile]))
+        rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+        
+        if sar_mode:
+            sar_tile = np.array(Image.open(test_sar[tile]))
+            sar_tile = normalize_array(sar_tile, 0, 1) if normalize_flag else sar_tile
+            rgb_tile = np.dstack((rgb_tile, sar_tile))
+        
+        dsm_tile = np.array(Image.open(test_dsm[tile]))
+        dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
+        sem_tile = np.array(Image.open(test_sem[tile]))
+
+    elif dataset_name.startswith('Vaihingen_crp256'):
+        rgb_tile = np.array(Image.open(test_rgb[tile]))
+        rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+        dsm_tile = np.array(Image.open(test_dsm[tile]))
+        dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
+        sem_tile = np.array(Image.open(test_sem[tile]))
+        
+    return rgb_tile, dsm_tile, sem_tile
+
+
+# Additional utility functions as needed for PyTorch compatibility
+
+def validate_tensor_shape(tensor, expected_shape=None, name="tensor"):
+    """Validate tensor shape and provide helpful error messages"""
+    if not isinstance(tensor, torch.Tensor):
+        raise TypeError(f"{name} must be a torch.Tensor, got {type(tensor)}")
+    
+    if expected_shape is not None:
+        if tensor.shape != expected_shape:
+            raise ValueError(f"{name} shape mismatch: expected {expected_shape}, got {tensor.shape}")
+    
+    return True
+
+
+def safe_normalize(tensor, dim=None, eps=1e-8):
+    """Safely normalize tensor to avoid division by zero"""
+    if dim is None:
+        norm = torch.norm(tensor)
+    else:
+        norm = torch.norm(tensor, dim=dim, keepdim=True)
+    
+    return tensor / (norm + eps)
+
+
+def convert_to_pytorch_format(data_batch):
+    """Convert numpy batch to PyTorch format"""
+    if isinstance(data_batch, np.ndarray):
+        # Convert numpy to tensor
+        tensor = torch.from_numpy(data_batch).float()
+        
+        # If it's an image batch, transpose from NHWC to NCHW
+        if len(tensor.shape) == 4:
+            tensor = tensor.permute(0, 3, 1, 2)
+        elif len(tensor.shape) == 3:
+            tensor = tensor.permute(2, 0, 1)
+            
+        return tensor
+    elif isinstance(data_batch, torch.Tensor):
+        return data_batch
+    else:
+        raise TypeError(f"Unsupported data type: {type(data_batch)}")
+
+
+def get_device():
+    """Get the appropriate device for computation"""
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    else:
+        return torch.device('cpu')
+
+
+def move_to_device(data, device=None):
+    """Move data to specified device"""
+    if device is None:
+        device = get_device()
+    
+    if isinstance(data, torch.Tensor):
+        return data.to(device)
+    elif isinstance(data, dict):
+        return {k: move_to_device(v, device) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [move_to_device(item, device) for item in data]
+    else:
+        return data
+
+
+def print_tensor_stats(tensor, name="tensor"):
+    """Print useful statistics about a tensor"""
+    if isinstance(tensor, torch.Tensor):
+        print(f"{name} - Shape: {tensor.shape}, "
+              f"Dtype: {tensor.dtype}, "
+              f"Device: {tensor.device}, "
+              f"Min: {tensor.min().item():.4f}, "
+              f"Max: {tensor.max().item():.4f}, "
+              f"Mean: {tensor.mean().item():.4f}")
+    else:
+        print(f"{name} is not a tensor: {type(tensor)}")
+
+
+def ensure_directory_exists(directory_path):
+    """Ensure directory exists, create if it doesn't"""
+    if not os.path.exists(directory_path):
+        os.makedirs(directory_path, exist_ok=True)
+        print(f"Created directory: {directory_path}")
+
+
+def log_memory_usage():
+    """Log current GPU memory usage if CUDA is available"""
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**3
+        cached = torch.cuda.memory_reserved() / 1024**3
+        print(f"GPU Memory - Allocated: {allocated:.2f}GB, Cached: {cached:.2f}GB")
+
+
+class AverageMeter:
+    """Computes and stores the average and current value"""
+    def __init__(self, name, fmt=':f'):
+        self.name = name
+        self.fmt = fmt
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+    def __str__(self):
+        f_str = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
+        return f_str.format(**self.__dict__)
+
+
+def collate_fn(batch):
+    """Custom collate function for DataLoader"""
+    # Handle different data types in batch
+    keys = batch[0].keys()
+    collated = {}
+    
+    for key in keys:
+        values = [item[key] for item in batch]
+        if isinstance(values[0], torch.Tensor):
+            collated[key] = torch.stack(values, dim=0)
+        else:
+            collated[key] = values
+    
+    return collated
