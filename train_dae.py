@@ -91,9 +91,9 @@ with strategy.scope():
     
     # Define the loss function for regression within strategy scope
     if reg_loss == 'mse':
-        REG_LOSS = MeanSquaredError()
+        REG_LOSS = MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
     elif reg_loss == 'huber':
-        REG_LOSS = Huber(delta=huber_delta)
+        REG_LOSS = Huber(delta=huber_delta, reduction=tf.keras.losses.Reduction.NONE)
 
 # Plot train/valid errors if the case
 if train_valid_flag:
@@ -131,12 +131,12 @@ def distributed_dae_train_step(correction_input, dsm_initial, dsm_batch):
         with tf.GradientTape() as tape:
             noise = dae.call(correction_input, training=True)
             dsm_corrected = dsm_initial - noise
-            dae_loss = REG_LOSS(dsm_batch, dsm_corrected)
             
-            # Scale loss for multi-GPU training
-            scaled_loss = dae_loss / strategy.num_replicas_in_sync
+            # Compute loss with proper reduction for distributed training
+            dae_loss_per_sample = REG_LOSS(dsm_batch, dsm_corrected)
+            dae_loss = tf.reduce_sum(dae_loss_per_sample) * (1.0 / dae_global_batch_size)
             
-        grads = tape.gradient(scaled_loss, dae.trainable_variables)
+        grads = tape.gradient(dae_loss, dae.trainable_variables)
         optimizer.apply_gradients(zip(grads, dae.trainable_variables))
         
         return dae_loss, dsm_corrected
@@ -200,7 +200,10 @@ for epoch in range(1, dae_numEpochs + 1):
             with tf.GradientTape() as tape:
                 noise = dae.call(correctionInput, training=True)
                 dsm_out = dsm_out - noise
-                dae_loss = REG_LOSS(dsm_batch, dsm_out)
+                
+                # Handle NONE reduction for single GPU too
+                dae_loss_per_sample = REG_LOSS(dsm_batch, dsm_out)
+                dae_loss = tf.reduce_mean(dae_loss_per_sample)
                 
                 # Calculate RMSE
                 abs_diff = tf.abs(dsm_out - dsm_batch)

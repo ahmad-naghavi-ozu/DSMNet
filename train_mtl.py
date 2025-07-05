@@ -92,10 +92,10 @@ with strategy.scope():
 
     # Define the loss function for regression and classification tasks
     if reg_loss == 'mse':
-        REG_LOSS = MeanSquaredError()
+        REG_LOSS = MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
     elif reg_loss == 'huber':
-        REG_LOSS = Huber(delta=huber_delta)
-    CCE = CategoricalCrossentropy()
+        REG_LOSS = Huber(delta=huber_delta, reduction=tf.keras.losses.Reduction.NONE)
+    CCE = CategoricalCrossentropy(reduction=tf.keras.losses.Reduction.NONE)
 
 # Plot train/valid errors if the case
 if train_valid_flag:
@@ -132,25 +132,39 @@ def distributed_train_step(rgb_batch, dsm_batch, sem_batch, norm_batch, edge_bat
     def train_step(rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch):
         with tf.GradientTape() as tape:
             dsm_out, sem_out, norm_out, edge_out = mtl.call(rgb_batch, mtl_head_mode, training=True)
-            L1 = REG_LOSS(dsm_batch.squeeze(), tf.squeeze(dsm_out))
+            
+            # Compute losses with proper reduction for distributed training
+            L1_per_sample = REG_LOSS(tf.squeeze(dsm_batch), tf.squeeze(dsm_out))
+            L1 = tf.reduce_sum(L1_per_sample) * (1.0 / global_batch_size)
             
             # Compute per-sample DSM RMSE for comparison with test metrics
-            abs_diff = tf.abs(tf.squeeze(dsm_out) - dsm_batch.squeeze())
+            abs_diff = tf.abs(tf.squeeze(dsm_out) - tf.squeeze(dsm_batch))
             mse_per_sample = tf.reduce_mean(tf.square(abs_diff), axis=[1, 2])
             rmse_per_sample = tf.sqrt(mse_per_sample)
             batch_rmse = tf.reduce_mean(rmse_per_sample)
             
-            L2 = CCE(sem_batch, sem_out) if sem_flag else tf.constant(0, dtype=tf.float32)
-            L3 = REG_LOSS(norm_batch, norm_out) if norm_flag else tf.constant(0, dtype=tf.float32)
-            L4 = REG_LOSS(edge_batch.squeeze(), tf.squeeze(edge_out)) if edge_flag else tf.constant(0, dtype=tf.float32)
+            if sem_flag:
+                L2_per_sample = CCE(sem_batch, sem_out)
+                L2 = tf.reduce_sum(L2_per_sample) * (1.0 / global_batch_size)
+            else:
+                L2 = tf.constant(0, dtype=tf.float32)
+                
+            if norm_flag:
+                L3_per_sample = REG_LOSS(norm_batch, norm_out)
+                L3 = tf.reduce_sum(L3_per_sample) * (1.0 / global_batch_size)
+            else:
+                L3 = tf.constant(0, dtype=tf.float32)
+                
+            if edge_flag:
+                L4_per_sample = REG_LOSS(tf.squeeze(edge_batch), tf.squeeze(edge_out))
+                L4 = tf.reduce_sum(L4_per_sample) * (1.0 / global_batch_size)
+            else:
+                L4 = tf.constant(0, dtype=tf.float32)
             
             # Compute the overall loss according to scaling factors
             total_loss = w1 * L1 + w2 * L2 + w3 * L3 + w4 * L4
             
-            # Scale loss for multi-GPU training
-            scaled_loss = total_loss / strategy.num_replicas_in_sync
-            
-        grads = tape.gradient(scaled_loss, mtl.trainable_variables)
+        grads = tape.gradient(total_loss, mtl.trainable_variables)
         optimizer.apply_gradients(zip(grads, mtl.trainable_variables))
         
         return total_loss, L1, L2, L3, L4, batch_rmse
@@ -202,17 +216,34 @@ for epoch in range(1, mtl_numEpochs + 1):
             # Original single-GPU training code
             with tf.GradientTape() as tape:
                 dsm_out, sem_out, norm_out, edge_out = mtl.call(rgb_batch, mtl_head_mode, training=True)
-                L1 = REG_LOSS(dsm_batch.squeeze(), tf.squeeze(dsm_out))
+                
+                # For single GPU, we need to handle the NONE reduction manually too
+                L1_per_sample = REG_LOSS(tf.squeeze(dsm_batch), tf.squeeze(dsm_out))
+                L1 = tf.reduce_mean(L1_per_sample)
                 
                 # Compute per-sample DSM RMSE for comparison with test metrics
-                abs_diff = tf.abs(tf.squeeze(dsm_out) - dsm_batch.squeeze())
+                abs_diff = tf.abs(tf.squeeze(dsm_out) - tf.squeeze(dsm_batch))
                 mse_per_sample = tf.reduce_mean(tf.square(abs_diff), axis=[1, 2])
                 rmse_per_sample = tf.sqrt(mse_per_sample)
                 batch_rmse = tf.reduce_mean(rmse_per_sample)
                 
-                L2 = CCE(sem_batch, sem_out) if sem_flag else tf.constant(0, dtype=tf.float32)
-                L3 = REG_LOSS(norm_batch, norm_out) if norm_flag else tf.constant(0, dtype=tf.float32)
-                L4 = REG_LOSS(edge_batch.squeeze(), tf.squeeze(edge_out)) if edge_flag else tf.constant(0, dtype=tf.float32)
+                if sem_flag:
+                    L2_per_sample = CCE(sem_batch, sem_out)
+                    L2 = tf.reduce_mean(L2_per_sample)
+                else:
+                    L2 = tf.constant(0, dtype=tf.float32)
+                    
+                if norm_flag:
+                    L3_per_sample = REG_LOSS(norm_batch, norm_out)
+                    L3 = tf.reduce_mean(L3_per_sample)
+                else:
+                    L3 = tf.constant(0, dtype=tf.float32)
+                    
+                if edge_flag:
+                    L4_per_sample = REG_LOSS(tf.squeeze(edge_batch), tf.squeeze(edge_out))
+                    L4 = tf.reduce_mean(L4_per_sample)
+                else:
+                    L4 = tf.constant(0, dtype=tf.float32)
                 
                 # Compute the overall loss according to scaling factors
                 total_loss = w1 * L1 + w2 * L2 + w3 * L3 + w4 * L4
