@@ -68,32 +68,34 @@ NUM_TRAIN_IMAGES = len(train_rgb)
 logger.info(f"Number of training samples: {NUM_TRAIN_IMAGES}\n")
 
 # Define the backbone of MTL serving as the encoder section
-backboneNet = DenseNet121(
-    weights='imagenet', 
-    include_top=False, 
-    input_tensor=Input(shape=(cropSize, cropSize, 3))
-    )
-# Define the MTL model with necessary parameters
-mtl = MTL(
-    backboneNet, 
-    sem_flag=sem_flag, 
-    norm_flag=norm_flag, 
-    edge_flag=edge_flag
-    )
-# Load saved weights in the beginning if there is any
-if mtl_preload: 
-    mtl.load_weights(predCheckPointPath)
-# Freeze the backbone weights if necessary to save computation time.
-# In such a way, only the decoder section will be updating during training.
-if mtl_bb_freeze:
-    for layer in backboneNet.layers: layer.trainable = False
+# Create model within the distributed strategy scope for multi-GPU training
+with strategy.scope():
+    backboneNet = DenseNet121(
+        weights='imagenet', 
+        include_top=False, 
+        input_tensor=Input(shape=(cropSize, cropSize, 3))
+        )
+    # Define the MTL model with necessary parameters
+    mtl = MTL(
+        backboneNet, 
+        sem_flag=sem_flag, 
+        norm_flag=norm_flag, 
+        edge_flag=edge_flag
+        )
+    # Load saved weights in the beginning if there is any
+    if mtl_preload: 
+        mtl.load_weights(predCheckPointPath)
+    # Freeze the backbone weights if necessary to save computation time.
+    # In such a way, only the decoder section will be updating during training.
+    if mtl_bb_freeze:
+        for layer in backboneNet.layers: layer.trainable = False
 
-# Define the loss function for regression and classification tasks
-if reg_loss == 'mse':
-    REG_LOSS = MeanSquaredError()
-elif reg_loss == 'huber':
-    REG_LOSS = Huber(delta=huber_delta)
-CCE = CategoricalCrossentropy()
+    # Define the loss function for regression and classification tasks
+    if reg_loss == 'mse':
+        REG_LOSS = MeanSquaredError()
+    elif reg_loss == 'huber':
+        REG_LOSS = Huber(delta=huber_delta)
+    CCE = CategoricalCrossentropy()
 
 # Plot train/valid errors if the case
 if train_valid_flag:
@@ -124,6 +126,38 @@ if train_valid_flag:
         model_type='MTL'
     )
 
+# Define distributed training step for multi-GPU training
+@tf.function
+def distributed_train_step(rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch):
+    def train_step(rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch):
+        with tf.GradientTape() as tape:
+            dsm_out, sem_out, norm_out, edge_out = mtl.call(rgb_batch, mtl_head_mode, training=True)
+            L1 = REG_LOSS(dsm_batch.squeeze(), tf.squeeze(dsm_out))
+            
+            # Compute per-sample DSM RMSE for comparison with test metrics
+            abs_diff = tf.abs(tf.squeeze(dsm_out) - dsm_batch.squeeze())
+            mse_per_sample = tf.reduce_mean(tf.square(abs_diff), axis=[1, 2])
+            rmse_per_sample = tf.sqrt(mse_per_sample)
+            batch_rmse = tf.reduce_mean(rmse_per_sample)
+            
+            L2 = CCE(sem_batch, sem_out) if sem_flag else tf.constant(0, dtype=tf.float32)
+            L3 = REG_LOSS(norm_batch, norm_out) if norm_flag else tf.constant(0, dtype=tf.float32)
+            L4 = REG_LOSS(edge_batch.squeeze(), tf.squeeze(edge_out)) if edge_flag else tf.constant(0, dtype=tf.float32)
+            
+            # Compute the overall loss according to scaling factors
+            total_loss = w1 * L1 + w2 * L2 + w3 * L3 + w4 * L4
+            
+            # Scale loss for multi-GPU training
+            scaled_loss = total_loss / strategy.num_replicas_in_sync
+            
+        grads = tape.gradient(scaled_loss, mtl.trainable_variables)
+        optimizer.apply_gradients(zip(grads, mtl.trainable_variables))
+        
+        return total_loss, L1, L2, L3, L4, batch_rmse
+    
+    # Run the training step on all replicas
+    return strategy.run(train_step, args=(rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch))
+
 # Initiate training
 for epoch in range(1, mtl_numEpochs + 1):
 
@@ -132,8 +166,9 @@ for epoch in range(1, mtl_numEpochs + 1):
 
     # Update learning rate based on the decaying option
     if (mtl_lr_decay and epoch > 1): mtl_lr = mtl_lr / 2
-    # Set the model optimizer options
-    optimizer = tf.keras.optimizers.Adam(learning_rate=mtl_lr, beta_1=0.9)
+    # Set the model optimizer options within strategy scope for multi-GPU
+    with strategy.scope():
+        optimizer = tf.keras.optimizers.Adam(learning_rate=mtl_lr, beta_1=0.9)
 
     logger.info("Current epoch: " + str(epoch))
     logger.info("Current LR:    " + str(mtl_lr))
@@ -152,41 +187,55 @@ for epoch in range(1, mtl_numEpochs + 1):
         rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch = \
         generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, mtl_flag=True)
 
-        # Call the MTL model and compute the loss functions
-        with tf.GradientTape() as tape:
-            dsm_out, sem_out, norm_out, edge_out = mtl.call(rgb_batch, mtl_head_mode, training=True)
-            L1 = REG_LOSS(dsm_batch.squeeze(), tf.squeeze(dsm_out))  # For gradient computation
-            
-            # Compute per-sample DSM RMSE for comparison with test metrics
-            abs_diff = tf.abs(tf.squeeze(dsm_out) - dsm_batch.squeeze())
-            mse_per_sample = tf.reduce_mean(tf.square(abs_diff), axis=[1, 2])  # Mean over H,W dimensions
-            rmse_per_sample = tf.sqrt(mse_per_sample)
-            batch_rmse = tf.reduce_mean(rmse_per_sample)  # Average RMSE across batch
-            
-            L2 = CCE(sem_batch, sem_out) if sem_flag else tf.constant(0, dtype=tf.float32)
-            L3 = REG_LOSS(norm_batch, norm_out) if norm_flag else tf.constant(0, dtype=tf.float32)
-            L4 = REG_LOSS(edge_batch.squeeze(), tf.squeeze(edge_out)) if edge_flag else tf.constant(0, dtype=tf.float32)
+        # Use distributed training step for multi-GPU training
+        if multi_gpu_enabled:
+            total_loss, L1, L2, L3, L4, batch_rmse = distributed_train_step(
+                rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch)
+            # Reduce the losses across replicas
+            total_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, total_loss, axis=None)
+            L1 = strategy.reduce(tf.distribute.ReduceOp.MEAN, L1, axis=None)
+            L2 = strategy.reduce(tf.distribute.ReduceOp.MEAN, L2, axis=None)
+            L3 = strategy.reduce(tf.distribute.ReduceOp.MEAN, L3, axis=None)
+            L4 = strategy.reduce(tf.distribute.ReduceOp.MEAN, L4, axis=None)
+            batch_rmse = strategy.reduce(tf.distribute.ReduceOp.MEAN, batch_rmse, axis=None)
+        else:
+            # Original single-GPU training code
+            with tf.GradientTape() as tape:
+                dsm_out, sem_out, norm_out, edge_out = mtl.call(rgb_batch, mtl_head_mode, training=True)
+                L1 = REG_LOSS(dsm_batch.squeeze(), tf.squeeze(dsm_out))
+                
+                # Compute per-sample DSM RMSE for comparison with test metrics
+                abs_diff = tf.abs(tf.squeeze(dsm_out) - dsm_batch.squeeze())
+                mse_per_sample = tf.reduce_mean(tf.square(abs_diff), axis=[1, 2])
+                rmse_per_sample = tf.sqrt(mse_per_sample)
+                batch_rmse = tf.reduce_mean(rmse_per_sample)
+                
+                L2 = CCE(sem_batch, sem_out) if sem_flag else tf.constant(0, dtype=tf.float32)
+                L3 = REG_LOSS(norm_batch, norm_out) if norm_flag else tf.constant(0, dtype=tf.float32)
+                L4 = REG_LOSS(edge_batch.squeeze(), tf.squeeze(edge_out)) if edge_flag else tf.constant(0, dtype=tf.float32)
+                
+                # Compute the overall loss according to scaling factors
+                total_loss = w1 * L1 + w2 * L2 + w3 * L3 + w4 * L4
+                
+            # Update the model parameters
+            grads = tape.gradient(total_loss, mtl.trainable_variables)
+            optimizer.apply_gradients(zip(grads, mtl.trainable_variables))
 
-            # Check for NaN values in loss components 
-            if tf.math.is_nan(L1) or tf.math.is_nan(L2) or tf.math.is_nan(L3) or tf.math.is_nan(L4):
-                logger.error(f"NaN detected in loss values:")
-                logger.error(f"L1 (DSM loss): {L1}")
-                logger.error(f"L2 (Semantic loss): {L2}")
-                logger.error(f"L3 (Normal loss): {L3}")
-                logger.error(f"L4 (Edge loss): {L4}")
-                logger.error(f"Current batch statistics:")
+        # Check for NaN values in loss components 
+        if tf.math.is_nan(L1) or tf.math.is_nan(L2) or tf.math.is_nan(L3) or tf.math.is_nan(L4):
+            logger.error(f"NaN detected in loss values:")
+            logger.error(f"L1 (DSM loss): {L1}")
+            logger.error(f"L2 (Semantic loss): {L2}")
+            logger.error(f"L3 (Normal loss): {L3}")
+            logger.error(f"L4 (Edge loss): {L4}")
+            logger.error(f"Current batch statistics:")
+            if not multi_gpu_enabled:  # Only log these for single GPU
                 logger.error(f"DSM output range: {tf.reduce_min(dsm_out)} to {tf.reduce_max(dsm_out)}")
                 logger.error(f"DSM target range: {tf.reduce_min(dsm_batch)} to {tf.reduce_max(dsm_batch)}")
-                raise ValueError("Training halted due to NaN values in loss computation")
+            raise ValueError("Training halted due to NaN values in loss computation")
 
-            # Compute the overall loss according to scaling factors
-            total_loss = w1 * L1 + w2 * L2 + w3 * L3 + w4 * L4
-            logger.info(f'epoch: {epoch}/{mtl_numEpochs}\ttrain_iter: {iter}/{mtl_train_iters}\t'
-                       f'total_loss: {total_loss:.6f}\tbatch_rmse: {batch_rmse:.6f}')
-
-        # Update the model parameters
-        grads = tape.gradient(total_loss, mtl.trainable_variables)
-        optimizer.apply_gradients(zip(grads, mtl.trainable_variables))
+        logger.info(f'epoch: {epoch}/{mtl_numEpochs}\ttrain_iter: {iter}/{mtl_train_iters}\t'
+                   f'total_loss: {total_loss:.6f}\tbatch_rmse: {batch_rmse:.6f}')
 
         # Update error metrics
         error_total = error_total + total_loss.numpy()

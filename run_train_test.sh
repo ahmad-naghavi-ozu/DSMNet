@@ -3,6 +3,15 @@
 # To run the script, execute the following command: 
 # chmod +x run_train_test.sh && ./run_train_test.sh
 
+# Multi-GPU DSMNet Training and Testing Pipeline
+# This script runs the complete DSMNet pipeline with multi-GPU support
+# Configure multi-GPU settings in config.py:
+# - Set multi_gpu_enabled = True for multi-GPU training
+# - Set gpu_devices = "0,1" or "0,1,2,3" etc. for your available GPUs
+# - Set multi_gpu_enabled = False for single GPU training
+
+echo "=== DSMNet Multi-GPU Training Pipeline ==="
+echo "Check config.py for multi-GPU settings before running"
 
 echo "Starting MTL training..."
 sed -i 's/correction = .*/correction = False/' config.py

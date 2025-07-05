@@ -81,17 +81,19 @@ mtl = MTL(
     )
 mtl.load_weights(predCheckPointPath)
 
-# Define the loss function for regression and classification tasks
-if reg_loss == 'mse':
-    REG_LOSS = MeanSquaredError()
-elif reg_loss == 'huber':
-    REG_LOSS = Huber(delta=huber_delta)
-
 # Define the DAE object for denoising the MTL outputs
-dae = Autoencoder()
-# Load saved weights in the beginning if there is any
-if dae_preload: 
-    dae.load_weights(corrCheckPointPath)
+# Create model within the distributed strategy scope for multi-GPU training
+with strategy.scope():
+    dae = Autoencoder()
+    # Load saved weights in the beginning if there is any
+    if dae_preload: 
+        dae.load_weights(corrCheckPointPath)
+    
+    # Define the loss function for regression within strategy scope
+    if reg_loss == 'mse':
+        REG_LOSS = MeanSquaredError()
+    elif reg_loss == 'huber':
+        REG_LOSS = Huber(delta=huber_delta)
 
 # Plot train/valid errors if the case
 if train_valid_flag:
@@ -122,6 +124,26 @@ if train_valid_flag:
         model_type='DAE'
     )
 
+# Define distributed training step for multi-GPU DAE training
+@tf.function
+def distributed_dae_train_step(correction_input, dsm_initial, dsm_batch):
+    def train_step(correction_input, dsm_initial, dsm_batch):
+        with tf.GradientTape() as tape:
+            noise = dae.call(correction_input, training=True)
+            dsm_corrected = dsm_initial - noise
+            dae_loss = REG_LOSS(dsm_batch, dsm_corrected)
+            
+            # Scale loss for multi-GPU training
+            scaled_loss = dae_loss / strategy.num_replicas_in_sync
+            
+        grads = tape.gradient(scaled_loss, dae.trainable_variables)
+        optimizer.apply_gradients(zip(grads, dae.trainable_variables))
+        
+        return dae_loss, dsm_corrected
+    
+    # Run the training step on all replicas
+    return strategy.run(train_step, args=(correction_input, dsm_initial, dsm_batch))
+
 # Initiate training
 for epoch in range(1, dae_numEpochs + 1):
 
@@ -130,8 +152,9 @@ for epoch in range(1, dae_numEpochs + 1):
 
     # Update learning rate based on the decaying option
     if (dae_lr_decay and epoch > 1): dae_lr = dae_lr / 2
-    # Set the model optimizer options
-    optimizer = tf.keras.optimizers.Adam(learning_rate=dae_lr, beta_1=0.9)
+    # Set the model optimizer options within strategy scope for multi-GPU
+    with strategy.scope():
+        optimizer = tf.keras.optimizers.Adam(learning_rate=dae_lr, beta_1=0.9)
 
     logger.info('Current epoch: ' + str(epoch))
     logger.info("Current LR:    " + str(dae_lr))
@@ -161,24 +184,36 @@ for epoch in range(1, dae_numEpochs + 1):
 
         # Call the DAE model and compute the loss function 
         # DAE output is contemplated noise here for the MTL output which serves as the DSM first guess
-        with tf.GradientTape() as tape:
-            noise = dae.call(correctionInput, training=True)
-            dsm_out = dsm_out - noise
-
-            dae_loss = REG_LOSS(dsm_batch, dsm_out)
+        if multi_gpu_enabled:
+            dae_loss, dsm_out = distributed_dae_train_step(correctionInput, dsm_out, dsm_batch)
+            # Reduce the loss across replicas
+            dae_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, dae_loss, axis=None)
+            dsm_out = strategy.reduce(tf.distribute.ReduceOp.MEAN, dsm_out, axis=None)
             
             # Calculate RMSE
             abs_diff = tf.abs(dsm_out - dsm_batch)
             mse_per_sample = tf.reduce_mean(tf.square(abs_diff), axis=[1, 2])
             rmse_per_sample = tf.sqrt(mse_per_sample)
             batch_rmse = tf.reduce_mean(rmse_per_sample)
+        else:
+            # Original single-GPU DAE training code
+            with tf.GradientTape() as tape:
+                noise = dae.call(correctionInput, training=True)
+                dsm_out = dsm_out - noise
+                dae_loss = REG_LOSS(dsm_batch, dsm_out)
+                
+                # Calculate RMSE
+                abs_diff = tf.abs(dsm_out - dsm_batch)
+                mse_per_sample = tf.reduce_mean(tf.square(abs_diff), axis=[1, 2])
+                rmse_per_sample = tf.sqrt(mse_per_sample)
+                batch_rmse = tf.reduce_mean(rmse_per_sample)
+                
+            # Update the model parameters
+            grads = tape.gradient(dae_loss, dae.trainable_variables)
+            optimizer.apply_gradients(zip(grads, dae.trainable_variables))
             
-            logger.info(f'epoch: {epoch}/{dae_numEpochs}\ttrain iter: {iter}/{dae_train_iters}\t'
-                       f'DAE loss: {dae_loss:.6f}\tbatch_rmse: {batch_rmse:.6f}')
-
-        # Update the model parameters
-        grads = tape.gradient(dae_loss, dae.trainable_variables)
-        optimizer.apply_gradients(zip(grads, dae.trainable_variables))
+        logger.info(f'epoch: {epoch}/{dae_numEpochs}\ttrain iter: {iter}/{dae_train_iters}\t'
+                   f'DAE loss: {dae_loss:.6f}\tbatch_rmse: {batch_rmse:.6f}')
 
         # Update the error metric
         error_dae = error_dae + dae_loss.numpy()

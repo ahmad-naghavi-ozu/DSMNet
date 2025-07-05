@@ -5,8 +5,14 @@ import os
 # Set up GPU environment variables for CUDA device management
 # Ensure CUDA devices are ordered by PCI bus ID for consistent behavior across sessions
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# Specify which GPU to use; here, GPU with index 1 is selected
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Change this to the desired GPU index
+
+# Multi-GPU configuration
+# Set to False for single GPU, True for multi-GPU training
+multi_gpu_enabled = True
+# Specify which GPUs to use for multi-GPU training (comma-separated)
+# For single GPU: "0", For multi-GPU: "0,1" or "0,1,2,3" etc.
+gpu_devices = "0,1"  # Change this to your available GPU indices
+os.environ["CUDA_VISIBLE_DEVICES"] = gpu_devices
 # Set TensorFlow log level to a specific level
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INFO, 2 = filter out INFO & WARNINGS, 3 = only ERROR messages
 
@@ -198,3 +204,24 @@ sem_k = len(semantic_label_map)
 
 # Check if the dataset is binary classification based on label codes
 binary_classification_flag = len(label_codes) == 2 and set(label_codes) == {0, 1}
+
+# Multi-GPU Strategy Configuration
+# This section handles the TensorFlow distributed strategy for multi-GPU training
+import tensorflow as tf
+
+if multi_gpu_enabled:
+    # Use MirroredStrategy for synchronous training across multiple GPUs
+    strategy = tf.distribute.MirroredStrategy()
+    print(f"Number of devices: {strategy.num_replicas_in_sync}")
+    
+    # Adjust batch size for multi-GPU training
+    # The effective batch size will be batch_size * num_gpus
+    global_batch_size = batch_size * strategy.num_replicas_in_sync
+    mtl_global_batch_size = mtl_batchSize * strategy.num_replicas_in_sync
+    dae_global_batch_size = dae_batchSize * strategy.num_replicas_in_sync
+else:
+    # Use default strategy for single GPU
+    strategy = tf.distribute.get_strategy()
+    global_batch_size = batch_size
+    mtl_global_batch_size = mtl_batchSize
+    dae_global_batch_size = dae_batchSize
