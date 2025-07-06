@@ -1,0 +1,181 @@
+2025-07-06 02:34:33,662 - INFO - 
+Number of test samples: 8
+
+2025-07-06 02:34:37,636 - INFO - 
+Current test tile #1/8: SV_Copenhagen_55.6941_12.5601
+2025-07-06 02:35:06,578 - INFO - Applied binary segmentation masks:
+2025-07-06 02:35:06,578 - INFO -   - Prediction mask to predicted DSM
+2025-07-06 02:35:06,578 - INFO -   - Ground truth mask to ground truth DSM
+2025-07-06 02:35:06,579 - INFO - Masked out 99.89% of pixels in predicted DSM
+2025-07-06 02:35:06,579 - INFO - Masked out 65.79% of pixels in ground truth DSM
+2025-07-06 02:35:06,580 - INFO - Found 48837 non-zero background pixels in ground truth (28.32%)
+2025-07-06 02:35:06,582 - INFO - dsm_pred - ratio of zero pixels    : 0.9988937377929688
+2025-07-06 02:35:06,582 - INFO - dsm_pred - mean of negative pixels : nan
+2025-07-06 02:35:06,582 - INFO - dsm_tile - ratio of zero pixels    : 0.7040367126464844
+2025-07-06 02:35:06,582 - INFO - dsm_tile - mean of negative pixels : nan
+2025-07-06 02:35:06,588 - INFO - Tile MSE   : 295.9211
+2025-07-06 02:35:06,588 - INFO - Tile MAE   : 6.7424
+2025-07-06 02:35:06,588 - INFO - Tile RMSE  : 17.2024
+2025-07-06 02:35:06,588 - INFO - Tile Delta1: 0.7033
+2025-07-06 02:35:06,588 - INFO - Tile Delta2: 0.7033
+2025-07-06 02:35:06,588 - INFO - Tile Delta3: 0.7034
+2025-07-06 02:35:06,588 - INFO - Tile time  : 28.286206483840942
+2025-07-06 02:35:06,591 - INFO - 
+Current test tile #2/8: SV_Copenhagen_55.6800_12.5610
+2025-07-06 02:35:07,359 - INFO - Applied binary segmentation masks:
+2025-07-06 02:35:07,359 - INFO -   - Prediction mask to predicted DSM
+2025-07-06 02:35:07,359 - INFO -   - Ground truth mask to ground truth DSM
+2025-07-06 02:35:07,359 - INFO - Masked out 99.91% of pixels in predicted DSM
+2025-07-06 02:35:07,360 - INFO - Masked out 71.72% of pixels in ground truth DSM
+2025-07-06 02:35:07,360 - INFO - Found 54155 non-zero background pixels in ground truth (28.81%)
+2025-07-06 02:35:07,362 - INFO - dsm_pred - ratio of zero pixels    : 0.999114990234375
+2025-07-06 02:35:07,362 - INFO - dsm_pred - mean of negative pixels : nan
+2025-07-06 02:35:07,362 - INFO - dsm_tile - ratio of zero pixels    : 0.7279281616210938
+2025-07-06 02:35:07,362 - INFO - dsm_tile - mean of negative pixels : nan
+2025-07-06 02:35:07,367 - INFO - Tile MSE   : 193.1644
+2025-07-06 02:35:07,368 - INFO - Tile MAE   : 7.0395
+2025-07-06 02:35:07,368 - INFO - Tile RMSE  : 13.8984
+2025-07-06 02:35:07,368 - INFO - Tile Delta1: 0.7273
+2025-07-06 02:35:07,368 - INFO - Tile Delta2: 0.7274
+2025-07-06 02:35:07,368 - INFO - Tile Delta3: 0.7274
+2025-07-06 02:35:07,368 - INFO - Tile time  : 0.13347434997558594
+2025-07-06 02:35:07,370 - INFO - 
+Current test tile #3/8: SV_Berlin_52.5286_13.4557
+2025-07-06 02:35:08,121 - INFO - Applied binary segmentation masks:
+2025-07-06 02:35:08,121 - INFO -   - Prediction mask to predicted DSM
+2025-07-06 02:35:08,121 - INFO -   - Ground truth mask to ground truth DSM
+2025-07-06 02:35:08,121 - INFO - Masked out 99.89% of pixels in predicted DSM
+2025-07-06 02:35:08,122 - INFO - Masked out 84.46% of pixels in ground truth DSM
+2025-07-06 02:35:08,122 - INFO - Found 41938 non-zero background pixels in ground truth (18.94%)
+2025-07-06 02:35:08,124 - INFO - dsm_pred - ratio of zero pixels    : 0.9989471435546875
+2025-07-06 02:35:08,124 - INFO - dsm_pred - mean of negative pixels : nan
+2025-07-06 02:35:08,124 - INFO - dsm_tile - ratio of zero pixels    : 0.8647499084472656
+2025-07-06 02:35:08,124 - INFO - dsm_tile - mean of negative pixels : nan
+2025-07-06 02:35:08,129 - INFO - Tile MSE   : 82.1464
+2025-07-06 02:35:08,129 - INFO - Tile MAE   : 2.7317
+2025-07-06 02:35:08,129 - INFO - Tile RMSE  : 9.0635
+2025-07-06 02:35:08,129 - INFO - Tile Delta1: 0.8642
+2025-07-06 02:35:08,129 - INFO - Tile Delta2: 0.8645
+2025-07-06 02:35:08,129 - INFO - Tile Delta3: 0.8649
+2025-07-06 02:35:08,129 - INFO - Tile time  : 0.1276228427886963
+2025-07-06 02:35:08,132 - INFO - 
+Current test tile #4/8: SV_Berlin_52.5054_13.4804
+2025-07-06 02:35:08,911 - INFO - Applied binary segmentation masks:
+2025-07-06 02:35:08,912 - INFO -   - Prediction mask to predicted DSM
+2025-07-06 02:35:08,912 - INFO -   - Ground truth mask to ground truth DSM
+2025-07-06 02:35:08,912 - INFO - Masked out 99.93% of pixels in predicted DSM
+2025-07-06 02:35:08,912 - INFO - Masked out 83.27% of pixels in ground truth DSM
+2025-07-06 02:35:08,913 - INFO - Found 21164 non-zero background pixels in ground truth (9.70%)
+2025-07-06 02:35:08,915 - INFO - dsm_pred - ratio of zero pixels    : 0.9992599487304688
+2025-07-06 02:35:08,915 - INFO - dsm_pred - mean of negative pixels : nan
+2025-07-06 02:35:08,915 - INFO - dsm_tile - ratio of zero pixels    : 0.8539466857910156
+2025-07-06 02:35:08,915 - INFO - dsm_tile - mean of negative pixels : nan
+2025-07-06 02:35:08,920 - INFO - Tile MSE   : 48.1867
+2025-07-06 02:35:08,920 - INFO - Tile MAE   : 2.4523
+2025-07-06 02:35:08,920 - INFO - Tile RMSE  : 6.9417
+2025-07-06 02:35:08,920 - INFO - Tile Delta1: 0.8534
+2025-07-06 02:35:08,920 - INFO - Tile Delta2: 0.8536
+2025-07-06 02:35:08,920 - INFO - Tile Delta3: 0.8538
+2025-07-06 02:35:08,920 - INFO - Tile time  : 0.1303727626800537
+2025-07-06 02:35:08,922 - INFO - 
+Current test tile #5/8: SV_SanDiego_32.7151_-117.2506
+2025-07-06 02:35:09,684 - INFO - Applied binary segmentation masks:
+2025-07-06 02:35:09,684 - INFO -   - Prediction mask to predicted DSM
+2025-07-06 02:35:09,684 - INFO -   - Ground truth mask to ground truth DSM
+2025-07-06 02:35:09,684 - INFO - Masked out 99.91% of pixels in predicted DSM
+2025-07-06 02:35:09,684 - INFO - Masked out 77.11% of pixels in ground truth DSM
+2025-07-06 02:35:09,685 - INFO - Found 24702 non-zero background pixels in ground truth (12.22%)
+2025-07-06 02:35:09,687 - INFO - dsm_pred - ratio of zero pixels    : 0.9990653991699219
+2025-07-06 02:35:09,687 - INFO - dsm_pred - mean of negative pixels : nan
+2025-07-06 02:35:09,687 - INFO - dsm_tile - ratio of zero pixels    : 0.8268470764160156
+2025-07-06 02:35:09,687 - INFO - dsm_tile - mean of negative pixels : nan
+2025-07-06 02:35:09,693 - INFO - Tile MSE   : 4.2294
+2025-07-06 02:35:09,693 - INFO - Tile MAE   : 0.8088
+2025-07-06 02:35:09,693 - INFO - Tile RMSE  : 2.0565
+2025-07-06 02:35:09,693 - INFO - Tile Delta1: 0.8260
+2025-07-06 02:35:09,693 - INFO - Tile Delta2: 0.8261
+2025-07-06 02:35:09,693 - INFO - Tile Delta3: 0.8261
+2025-07-06 02:35:09,693 - INFO - Tile time  : 0.12739777565002441
+2025-07-06 02:35:09,695 - INFO - 
+Current test tile #6/8: SV_SanDiego_32.7275_-117.2434
+2025-07-06 02:35:10,452 - INFO - Applied binary segmentation masks:
+2025-07-06 02:35:10,453 - INFO -   - Prediction mask to predicted DSM
+2025-07-06 02:35:10,453 - INFO -   - Ground truth mask to ground truth DSM
+2025-07-06 02:35:10,453 - INFO - Masked out 99.91% of pixels in predicted DSM
+2025-07-06 02:35:10,453 - INFO - Masked out 84.19% of pixels in ground truth DSM
+2025-07-06 02:35:10,454 - INFO - Found 13699 non-zero background pixels in ground truth (6.21%)
+2025-07-06 02:35:10,455 - INFO - dsm_pred - ratio of zero pixels    : 0.9990921020507812
+2025-07-06 02:35:10,455 - INFO - dsm_pred - mean of negative pixels : nan
+2025-07-06 02:35:10,455 - INFO - dsm_tile - ratio of zero pixels    : 0.8578338623046875
+2025-07-06 02:35:10,455 - INFO - dsm_tile - mean of negative pixels : nan
+2025-07-06 02:35:10,460 - INFO - Tile MSE   : 3.6244
+2025-07-06 02:35:10,461 - INFO - Tile MAE   : 0.6772
+2025-07-06 02:35:10,461 - INFO - Tile RMSE  : 1.9038
+2025-07-06 02:35:10,461 - INFO - Tile Delta1: 0.8571
+2025-07-06 02:35:10,461 - INFO - Tile Delta2: 0.8571
+2025-07-06 02:35:10,461 - INFO - Tile Delta3: 0.8571
+2025-07-06 02:35:10,461 - INFO - Tile time  : 0.1269514560699463
+2025-07-06 02:35:10,463 - INFO - 
+Current test tile #7/8: SV_SanDiego_32.7289_-117.2451
+2025-07-06 02:35:11,238 - INFO - Applied binary segmentation masks:
+2025-07-06 02:35:11,238 - INFO -   - Prediction mask to predicted DSM
+2025-07-06 02:35:11,238 - INFO -   - Ground truth mask to ground truth DSM
+2025-07-06 02:35:11,239 - INFO - Masked out 99.89% of pixels in predicted DSM
+2025-07-06 02:35:11,239 - INFO - Masked out 69.83% of pixels in ground truth DSM
+2025-07-06 02:35:11,240 - INFO - Found 24006 non-zero background pixels in ground truth (13.11%)
+2025-07-06 02:35:11,241 - INFO - dsm_pred - ratio of zero pixels    : 0.9989242553710938
+2025-07-06 02:35:11,241 - INFO - dsm_pred - mean of negative pixels : nan
+2025-07-06 02:35:11,241 - INFO - dsm_tile - ratio of zero pixels    : 0.7212333679199219
+2025-07-06 02:35:11,241 - INFO - dsm_tile - mean of negative pixels : nan
+2025-07-06 02:35:11,246 - INFO - Tile MSE   : 5.3743
+2025-07-06 02:35:11,246 - INFO - Tile MAE   : 1.1669
+2025-07-06 02:35:11,246 - INFO - Tile RMSE  : 2.3182
+2025-07-06 02:35:11,246 - INFO - Tile Delta1: 0.7205
+2025-07-06 02:35:11,247 - INFO - Tile Delta2: 0.7205
+2025-07-06 02:35:11,247 - INFO - Tile Delta3: 0.7206
+2025-07-06 02:35:11,247 - INFO - Tile time  : 0.12745141983032227
+2025-07-06 02:35:11,249 - INFO - 
+Current test tile #8/8: SV_SanDiego_32.7123_-117.2427
+2025-07-06 02:35:12,010 - INFO - Applied binary segmentation masks:
+2025-07-06 02:35:12,011 - INFO -   - Prediction mask to predicted DSM
+2025-07-06 02:35:12,011 - INFO -   - Ground truth mask to ground truth DSM
+2025-07-06 02:35:12,011 - INFO - Masked out 99.89% of pixels in predicted DSM
+2025-07-06 02:35:12,011 - INFO - Masked out 77.47% of pixels in ground truth DSM
+2025-07-06 02:35:12,012 - INFO - Found 29161 non-zero background pixels in ground truth (14.36%)
+2025-07-06 02:35:12,013 - INFO - dsm_pred - ratio of zero pixels    : 0.9988975524902344
+2025-07-06 02:35:12,014 - INFO - dsm_pred - mean of negative pixels : nan
+2025-07-06 02:35:12,014 - INFO - dsm_tile - ratio of zero pixels    : 0.8192634582519531
+2025-07-06 02:35:12,014 - INFO - dsm_tile - mean of negative pixels : nan
+2025-07-06 02:35:12,019 - INFO - Tile MSE   : 9.1051
+2025-07-06 02:35:12,019 - INFO - Tile MAE   : 1.1946
+2025-07-06 02:35:12,019 - INFO - Tile RMSE  : 3.0175
+2025-07-06 02:35:12,019 - INFO - Tile Delta1: 0.8184
+2025-07-06 02:35:12,019 - INFO - Tile Delta2: 0.8184
+2025-07-06 02:35:12,019 - INFO - Tile Delta3: 0.8185
+2025-07-06 02:35:12,019 - INFO - Tile time  : 0.12753534317016602
+2025-07-06 02:35:12,021 - INFO - 
+Evaluation Results for 8 Test Samples
+==================================================
+DSM Regression Metrics:
+    MSE:    80.218956
+    MAE:    2.851681
+    RMSE:   7.050236
+    Delta1: 0.796272
+    Delta2: 0.796352
+    Delta3: 0.796453
+
+==================================================
+Semantic Segmentation Metrics:
+Per-class Metrics:
+Class 0 (Label 0):
+	IoU: 0.7667 | F1: 0.8680 | Precision: 0.7673 | Recall: 0.9990
+Class 1 (Label 1):
+	IoU: 0.0010 | F1: 0.0020 | Precision: 0.2395 | Recall: 0.0010
+
+Overall Metrics:
+Mean IoU: 0.3839
+Overall Accuracy: 0.7668
+Frequency Weighted IoU: 0.5885
+==================================================
+Test process finished in 29.187012 sec.
+

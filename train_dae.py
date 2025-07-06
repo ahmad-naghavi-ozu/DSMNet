@@ -144,6 +144,10 @@ def distributed_dae_train_step(correction_input, dsm_initial, dsm_batch):
     # Run the training step on all replicas
     return strategy.run(train_step, args=(correction_input, dsm_initial, dsm_batch))
 
+# Create optimizer once within strategy scope for multi-GPU
+with strategy.scope():
+    optimizer = tf.keras.optimizers.Adam(learning_rate=dae_lr, beta_1=0.9)
+
 # Initiate training
 for epoch in range(1, dae_numEpochs + 1):
 
@@ -151,10 +155,10 @@ for epoch in range(1, dae_numEpochs + 1):
     logger.info(f'\nepoch {epoch}/{dae_numEpochs} just started!\n')
 
     # Update learning rate based on the decaying option
-    if (dae_lr_decay and epoch > 1): dae_lr = dae_lr / 2
-    # Set the model optimizer options within strategy scope for multi-GPU
-    with strategy.scope():
-        optimizer = tf.keras.optimizers.Adam(learning_rate=dae_lr, beta_1=0.9)
+    if (dae_lr_decay and epoch > 1): 
+        dae_lr = dae_lr / 2
+        # Update optimizer learning rate without recreating it
+        optimizer.learning_rate.assign(dae_lr)
 
     logger.info('Current epoch: ' + str(epoch))
     logger.info("Current LR:    " + str(dae_lr))

@@ -79,7 +79,7 @@ normalize_flag = False
 mtl_lr_decay = False  # Flag to enable/disable learning rate decay
 mtl_lr = 0.0002  # Initial learning rate for the MTL network
 mtl_batchSize = batch_size  # Batch size for training the MTL network, now dynamic based on dataset
-mtl_numEpochs = 1000  # Number of epochs for training the MTL network
+mtl_numEpochs = 1000  # Number of epochs for training the MTL network (reduced for testing)
 
 # Total number of training samples available for MTL generated out of data augmentation technique for large tiles, 
 # o.w. for input data as patches, the true number of training samples will be used accordingly
@@ -93,7 +93,7 @@ mtl_min_loss = float('inf')  # Minimum DSM loss threshold to save the MTL networ
 dae_lr_decay = False
 dae_lr = 0.0002
 dae_batchSize = batch_size  # Batch size for training the DAE network, now dynamic based on dataset
-dae_numEpochs = 1000
+dae_numEpochs = 1000  # Number of epochs for training the DAE network (reduced for testing)
 
 # Total number of training samples available for DAE generated out of data augmentation technique for large tiles, 
 # o.w. for input data as patches, the true number of training samples will be used accordingly
@@ -173,7 +173,7 @@ mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 
 # Set flag for applying denoising autoencoder during testing. 
 # Note: If set to True, this will affect train/valid error computations
-correction = True
+correction = False
 
 # Define label codes for semantic segmentation task, and
 # scaling factors (weights) for different types of loss functions in MTL
