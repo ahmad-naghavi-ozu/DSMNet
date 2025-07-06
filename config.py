@@ -84,9 +84,7 @@ mtl_numEpochs = 1000  # Number of epochs for training the MTL network (reduced f
 # Total number of training samples available for MTL generated out of data augmentation technique for large tiles, 
 # o.w. for input data as patches, the true number of training samples will be used accordingly
 mtl_training_samples = 10000
-# Calculate the total number of iterations required for training based on batch size and samples count
-mtl_train_iters = int(mtl_training_samples / mtl_batchSize)
-mtl_log_freq = int(mtl_train_iters / 5)  # Frequency at which evaluation metrics are calculated during training
+# Note: mtl_train_iters will be calculated after global batch size is determined
 mtl_min_loss = float('inf')  # Minimum DSM loss threshold to save the MTL network weights as checkpoints
 
 # Parameters for the Denoising AutoEncoder (DAE) component defined as the same way for MTL
@@ -98,8 +96,7 @@ dae_numEpochs = 1000  # Number of epochs for training the DAE network (reduced f
 # Total number of training samples available for DAE generated out of data augmentation technique for large tiles, 
 # o.w. for input data as patches, the true number of training samples will be used accordingly
 dae_training_samples = 10000
-dae_train_iters = int(dae_training_samples / dae_batchSize)
-dae_log_freq = int(dae_train_iters / 5)
+# Note: dae_train_iters will be calculated after global batch size is determined
 dae_min_loss = float('inf')  # Minimum loss (DSM noise) threshold to save the DAE network weights as checkpoints
 
 # MTL saved weights preloading mode. If True, then all MTL model will be initialized with saved weights before training
@@ -229,9 +226,21 @@ if multi_gpu_enabled:
     global_batch_size = batch_size * strategy.num_replicas_in_sync
     mtl_global_batch_size = mtl_batchSize * strategy.num_replicas_in_sync
     dae_global_batch_size = dae_batchSize * strategy.num_replicas_in_sync
+    
+    # Calculate training iterations based on GLOBAL batch size for multi-GPU
+    mtl_train_iters = int(mtl_training_samples / mtl_global_batch_size)
+    dae_train_iters = int(dae_training_samples / dae_global_batch_size)
 else:
     # Use default strategy for single GPU
     strategy = tf.distribute.get_strategy()
     global_batch_size = batch_size
     mtl_global_batch_size = mtl_batchSize
     dae_global_batch_size = dae_batchSize
+    
+    # Calculate training iterations based on per-GPU batch size for single GPU
+    mtl_train_iters = int(mtl_training_samples / mtl_batchSize)
+    dae_train_iters = int(dae_training_samples / dae_batchSize)
+
+# Calculate log frequency based on training iterations
+mtl_log_freq = int(mtl_train_iters / 5)  # Frequency at which evaluation metrics are calculated during training
+dae_log_freq = int(dae_train_iters / 5)

@@ -61,7 +61,8 @@ if not train_valid_flag:
 # Update number of training samples and training iterations for datasets that are not from tile_mode group
 if not large_tile_mode:
     mtl_training_samples = len(train_rgb)
-    mtl_train_iters = int(mtl_training_samples / mtl_batchSize)
+    # Use GLOBAL batch size for correct iteration calculation in multi-GPU setup
+    mtl_train_iters = int(mtl_training_samples / mtl_global_batch_size)
     mtl_log_freq = int(mtl_train_iters / 5)
 
 NUM_TRAIN_IMAGES = len(train_rgb)

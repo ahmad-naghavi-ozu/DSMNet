@@ -60,7 +60,8 @@ if not train_valid_flag:
 # Update number of training samples and training iterations for datasets that are not from tile_mode group
 if not large_tile_mode:
     dae_training_samples = len(train_rgb)
-    dae_train_iters = int(dae_training_samples / dae_batchSize)
+    # Use GLOBAL batch size for correct iteration calculation in multi-GPU setup
+    dae_train_iters = int(dae_training_samples / dae_global_batch_size)
     dae_log_freq = int(dae_train_iters / 5)
 
 NUM_TRAIN_IMAGES = len(train_rgb)
