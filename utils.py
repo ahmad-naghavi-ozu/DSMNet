@@ -247,6 +247,10 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
     This function creates batches of training data by either:
     1. Randomly sampling patches from large input tiles (for tile_mode datasets like Vaihingen and DFC2018)
     2. Sequentially selecting patches based on iteration number (for other datasets like DFC2023)
+    
+    For multi-GPU training, this function generates batches of size equal to the GLOBAL batch size,
+    which will be automatically distributed across GPUs by TensorFlow's MirroredStrategy.
+    
     Parameters:
     ----------
     train_rgb : list
@@ -278,7 +282,7 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
     -----
     - Input images can be normalized based on normalize_flag
     - For DFC2018, DSM is computed as difference between surface and terrain models
-    - Batch size is controlled by mtl_batchSize global variable
+    - Batch size is controlled by mtl_global_batch_size for proper multi-GPU distribution
     - Patch size is controlled by cropSize global variable
     """
     rgb_batch = []
@@ -286,6 +290,17 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
     sem_batch = []
     norm_batch = []
     edge_batch = []
+
+    # Determine the actual batch size to generate based on multi-GPU configuration and model type
+    # IMPORTANT: For multi-GPU, we generate global_batch_size samples total, which TensorFlow
+    # will automatically distribute across GPUs (e.g., 8 samples → 2 per GPU on 4 GPUs)
+    # For single GPU: generate per-GPU batch size samples
+    if mtl_flag:
+        # MTL training
+        actual_batch_size = mtl_global_batch_size if multi_gpu_enabled else mtl_batchSize
+    else:
+        # DAE training
+        actual_batch_size = dae_global_batch_size if multi_gpu_enabled else dae_batchSize
 
     # Select and preprocess a random input tile for batch random selection, if the input image is large
     if large_tile_mode:
@@ -325,8 +340,8 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                     edge_tile = genEdgeMap(dsm_tile); 
                     edge_tile = normalize_array(edge_tile, 0, 1) if normalize_flag else edge_tile
 
-    # Generate or select random patches
-    for i in range(mtl_batchSize):
+    # Generate or select random patches - now using actual_batch_size for proper multi-GPU distribution
+    for i in range(actual_batch_size):
         # Generate random patches if it is tile_mode_data. This is like data augmentation process
         if large_tile_mode:
             h = rgb_tile.shape[0]
@@ -344,13 +359,16 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                     edge = edge_tile[r:r + cropSize, c:c + cropSize]
         else:
             # Choose batch items in order based on every dataset specifics
+            # For non-large-tile datasets, we need to calculate the correct sample index
+            # based on the actual batch size being used
             if dataset_name.startswith('DFC2019'):
-                rgb = np.array(Image.open(train_rgb[(iter - 1) * mtl_batchSize + i]))
+                sample_idx = (iter - 1) * actual_batch_size + i
+                rgb = np.array(Image.open(train_rgb[sample_idx]))
                 rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
-                dsm = np.array(Image.open(train_dsm[(iter - 1) * mtl_batchSize + i]))
+                dsm = np.array(Image.open(train_dsm[sample_idx]))
                 dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
                 if mtl_flag:
-                    sem = np.array(Image.open(train_sem[(iter - 1) * mtl_batchSize + i]))
+                    sem = np.array(Image.open(train_sem[sample_idx]))
                     if norm_flag:
                         norm = genNormals(dsm); 
                         norm = norm if normalize_flag else (norm * 255).astype(np.uint8)
@@ -359,17 +377,18 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                         edge = normalize_array(edge, 0, 1) if normalize_flag else edge
 
             if dataset_name.startswith('DFC2023'):
-                rgb = np.array(Image.open(train_rgb[(iter - 1) * mtl_batchSize + i]))
+                sample_idx = (iter - 1) * actual_batch_size + i
+                rgb = np.array(Image.open(train_rgb[sample_idx]))
                 rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
                 if sar_mode:
-                    sar = np.array(Image.open(train_sar[(iter - 1) * mtl_batchSize + i]))
+                    sar = np.array(Image.open(train_sar[sample_idx]))
                     sar = normalize_array(sar, 0, 1) if normalize_flag else sar
                     rgb = np.dstack((rgb, sar))
-                dsm = np.array(Image.open(train_dsm[(iter - 1) * mtl_batchSize + i]))
+                dsm = np.array(Image.open(train_dsm[sample_idx]))
                 dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
 
                 if mtl_flag:
-                    sem = np.array(Image.open(train_sem[(iter - 1) * mtl_batchSize + i]))
+                    sem = np.array(Image.open(train_sem[sample_idx]))
                     if norm_flag:
                         norm = genNormals(dsm); 
                         norm = norm if normalize_flag else (norm * 255).astype(np.uint8)
@@ -378,12 +397,13 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                         edge = normalize_array(edge, 0, 1) if normalize_flag else edge
 
             if dataset_name.startswith('Vaihingen_crp256'):
-                rgb = np.array(Image.open(train_rgb[(iter - 1) * mtl_batchSize + i]))
+                sample_idx = (iter - 1) * actual_batch_size + i
+                rgb = np.array(Image.open(train_rgb[sample_idx]))
                 rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
-                dsm = np.array(Image.open(train_dsm[(iter - 1) * mtl_batchSize + i]))
+                dsm = np.array(Image.open(train_dsm[sample_idx]))
                 dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
                 if mtl_flag:
-                    sem = np.array(Image.open(train_sem[(iter - 1) * mtl_batchSize + i]))
+                    sem = np.array(Image.open(train_sem[sample_idx]))
                     if norm_flag:
                         norm = genNormals(dsm); 
                         norm = norm if normalize_flag else (norm * 255).astype(np.uint8)

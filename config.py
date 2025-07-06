@@ -180,7 +180,7 @@ mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 
 # Set flag for applying denoising autoencoder during testing. 
 # Note: If set to True, this will affect train/valid error computations
-correction = True
+correction = False
 
 # Define label codes for semantic segmentation task, and
 # scaling factors (weights) for different types of loss functions in MTL
@@ -221,11 +221,29 @@ if multi_gpu_enabled:
     strategy = tf.distribute.MirroredStrategy()
     print(f"Number of devices: {strategy.num_replicas_in_sync}")
     
-    # Adjust batch size for multi-GPU training
-    # The effective batch size will be batch_size * num_gpus
-    global_batch_size = batch_size * strategy.num_replicas_in_sync
-    mtl_global_batch_size = mtl_batchSize * strategy.num_replicas_in_sync
-    dae_global_batch_size = dae_batchSize * strategy.num_replicas_in_sync
+    # For multi-GPU training, we need to be careful about memory usage
+    # strategy.run() will automatically distribute the batch across GPUs
+    # So if we want each GPU to process 'batch_size' samples, we need to generate
+    # batch_size * num_gpus total samples
+    
+    # However, for memory efficiency, let's reduce per-GPU batch size for multi-GPU
+    if strategy.num_replicas_in_sync >= 4:
+        # For 4+ GPUs, use smaller per-GPU batch size to avoid OOM
+        per_gpu_mtl_batch = max(1, mtl_batchSize // 2)  # Reduce by half
+        per_gpu_dae_batch = max(1, dae_batchSize // 2)  # Reduce by half
+    else:
+        per_gpu_mtl_batch = mtl_batchSize
+        per_gpu_dae_batch = dae_batchSize
+    
+    # Global batch size is what we'll generate (will be split across GPUs)
+    global_batch_size = per_gpu_mtl_batch * strategy.num_replicas_in_sync
+    mtl_global_batch_size = per_gpu_mtl_batch * strategy.num_replicas_in_sync  
+    dae_global_batch_size = per_gpu_dae_batch * strategy.num_replicas_in_sync
+    
+    print(f"Per-GPU MTL batch size: {per_gpu_mtl_batch}")
+    print(f"Per-GPU DAE batch size: {per_gpu_dae_batch}")
+    print(f"Global MTL batch size: {mtl_global_batch_size}")
+    print(f"Global DAE batch size: {dae_global_batch_size}")
     
     # Calculate training iterations based on GLOBAL batch size for multi-GPU
     mtl_train_iters = int(mtl_training_samples / mtl_global_batch_size)
