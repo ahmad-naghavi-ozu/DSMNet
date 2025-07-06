@@ -14,12 +14,12 @@ The multi-GPU implementation for DSMNet has been **successfully completed** and 
 - ✅ **Backward compatibility** - Works seamlessly in single-GPU mode
 - ✅ **No redundant files** - Clean implementation without unnecessary abstractions
 
-### **Technical Implementation**
-- ✅ **TensorFlow MirroredStrategy** for synchronous multi-GPU training
-- ✅ **Proper loss reduction** for distributed training (`Reduction.NONE`)
-- ✅ **NCCL communication** for efficient gradient synchronization
-- ✅ **Strategy scope** for model and optimizer creation
-- ✅ **Global batch size scaling** (batch_size × num_gpus)
+### **File Organization**
+- **Training logs**: `./output/{dataset_name}/{sar_indicator}/_logs/`
+- **Training plots**: `./output/{dataset_name}/{sar_indicator}/_plots/`
+- **Checkpoints**: `./checkpoints/{dataset_name}/{sar_indicator}/`
+- **Test scripts**: `./tools/tests/` (organized and documented)
+- **SAR indicator**: `-sar` for non-SAR, `+sar` for SAR datasets
 
 ---
 
@@ -120,10 +120,11 @@ gpu_devices = "0"    # Use only one GPU
 - Proper loss handling for autoencoder
 
 ### **New Test Scripts**
-- `test_multi_gpu.py` - Configuration verification
-- `quick_test_mtl.py` - MTL training validation  
-- `quick_test_dae.py` - DAE training validation
-- `test_complete_pipeline.py` - Comprehensive testing
+- `_tools/tests/test_multi_gpu.py` - Configuration verification
+- `_tools/tests/quick_test_mtl.py` - MTL training validation  
+- `_tools/tests/quick_test_dae.py` - DAE training validation
+- `_tools/tests/test_complete_pipeline.py` - Comprehensive testing
+- `_tools/tests/README.md` - Complete test documentation
 
 ---
 

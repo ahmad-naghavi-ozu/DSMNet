@@ -116,6 +116,16 @@ sar_indicator = ('+sar' if sar_mode else '-sar') if sar_path_indicator else '.'
 predCheckPointPath = f'./checkpoints/{dataset_name}/{sar_indicator}/mtl'  # MTL checkpoints path
 corrCheckPointPath = f'./checkpoints/{dataset_name}/{sar_indicator}/refinement'  # DAE checkpoints path
 
+# Define output paths for logs and plots
+output_base_path = f'./output/{dataset_name}/{sar_indicator}'
+log_output_path = f'{output_base_path}/_logs'
+plot_output_path = f'{output_base_path}/_plots'
+
+# Ensure output directories exist
+import os
+os.makedirs(log_output_path, exist_ok=True)
+os.makedirs(plot_output_path, exist_ok=True)
+
 # Initialize the epoch counter for the last saved weights when validation is disabled
 last_epoch_saved = None 
 
@@ -173,7 +183,7 @@ mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 
 # Set flag for applying denoising autoencoder during testing. 
 # Note: If set to True, this will affect train/valid error computations
-correction = False
+correction = True
 
 # Define label codes for semantic segmentation task, and
 # scaling factors (weights) for different types of loss functions in MTL

@@ -456,8 +456,8 @@ def compute_validation_metrics(
     
     # Always redraw plot and save figure
     fig.canvas.draw()
-    plt.savefig(f'{dataset_name}_{model_type.lower()}_train_valid_metrics.png')
-    logger.info(f"Metrics plot updated at {dataset_name}_{model_type.lower()}_train_valid_metrics.png")
+    plt.savefig(f'{plot_output_path}/{dataset_name}_{model_type.lower()}_train_valid_metrics.png')
+    logger.info(f"Metrics plot updated at {plot_output_path}/{dataset_name}_{model_type.lower()}_train_valid_metrics.png")
         
     return valid_avg_rmse, train_metrics, valid_metrics
 

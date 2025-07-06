@@ -37,7 +37,7 @@ logging.basicConfig(
     level=logging.INFO,  # Set the logging level
     format='%(asctime)s - %(levelname)s - %(message)s',  # Specify the format
     handlers=[
-        logging.FileHandler(f"{dataset_name}_dae_train_output.log", mode='w'),  # Log to file (w: overwrite mode; a: append mode)
+        logging.FileHandler(f"{log_output_path}/{dataset_name}_dae_train_output.log", mode='w'),  # Log to file (w: overwrite mode; a: append mode)
         logging.StreamHandler()  # Also log to console
     ]
 )
@@ -285,7 +285,7 @@ logger.info(f'\nAutoEncoder training on {dataset_name} just finished at {current
 
 if train_valid_flag:
     # Save final plot and clean up
-    plt.savefig(f'{dataset_name}_dae_train_valid_metrics.png')
-    logger.info(f"Final metrics plot saved to {dataset_name}_dae_train_valid_metrics.png")
+    plt.savefig(f'{plot_output_path}/{dataset_name}_dae_train_valid_metrics.png')
+    logger.info(f"Final metrics plot saved to {plot_output_path}/{dataset_name}_dae_train_valid_metrics.png")
     plt.close(fig)
 
