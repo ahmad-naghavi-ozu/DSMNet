@@ -254,25 +254,34 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
             f"    Delta3: {avg_delta3:.6f}\n"
         )
 
-        # Format all segmentation metrics using the utility function
-        sem_metrics_str = format_segmentation_metrics(
-            iou_per_class=iou_per_class,
-            f1_per_class=f1_per_class,
-            precision_per_class=precision_per_class,
-            recall_per_class=recall_per_class,
-            miou=miou,
-            overall_accuracy=overall_accuracy,
-            FWIoU=FWIoU
-        )
-        
-        # Log all metrics with clear sections
-        logger.info(
-            f"\nEvaluation Results for {test_count} Test Samples\n"
-            f"{'='*50}\n"
-            f"{dsm_metrics_str}\n"
-            f"{'='*50}\n"
-            f"Semantic Segmentation Metrics:\n{sem_metrics_str}\n"
-            f"{'='*50}\n"
+        # Format segmentation metrics only if semantic segmentation is enabled
+        if sem_flag:
+            sem_metrics_str = format_segmentation_metrics(
+                iou_per_class=iou_per_class,
+                f1_per_class=f1_per_class,
+                precision_per_class=precision_per_class,
+                recall_per_class=recall_per_class,
+                miou=miou,
+                overall_accuracy=overall_accuracy,
+                FWIoU=FWIoU
+            )
+            
+            # Log all metrics with clear sections
+            logger.info(
+                f"\nEvaluation Results for {test_count} Test Samples\n"
+                f"{'='*50}\n"
+                f"{dsm_metrics_str}\n"
+                f"{'='*50}\n"
+                f"Semantic Segmentation Metrics:\n{sem_metrics_str}\n"
+                f"{'='*50}\n"
+            )
+        else:
+            # Log only DSM metrics when semantic segmentation is disabled
+            logger.info(
+                f"\nEvaluation Results for {test_count} Test Samples\n"
+                f"{'='*50}\n"
+                f"{dsm_metrics_str}\n"
+                f"{'='*50}\n"
             f"Test process finished in {total_time:.6f} sec.\n"
         )
 
