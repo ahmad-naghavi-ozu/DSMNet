@@ -170,7 +170,7 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
         if dataset_name == 'Vaihingen':
             rgb_tile = np.array(Image.open(train_rgb[idx])); 
             rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
-            dsm_tile = np.array(Image.open(train_dsm[idx])); 
+            dsm_tile = np.array(Image.open(train_dsm[idx])).astype(np.float32); 
             dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
 
             if mtl_flag:
@@ -185,8 +185,8 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
         elif dataset_name == 'DFC2018':
             rgb_tile = np.array(Image.open(train_rgb[idx])); 
             rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
-            dsm_tile = np.array(Image.open(train_dsm[2 * idx]))
-            dem_tile = np.array(Image.open(train_dsm[2 * idx + 1]))
+            dsm_tile = np.array(Image.open(train_dsm[2 * idx])).astype(np.float32)
+            dem_tile = np.array(Image.open(train_dsm[2 * idx + 1])).astype(np.float32)
             dsm_tile = correctTile(dsm_tile)
             dem_tile = correctTile(dem_tile)
             dsm_tile = dsm_tile - dem_tile  # Caution! nDSM here could still contain negative values
@@ -238,7 +238,7 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                 sar = normalize_array(sar, 0, 1) if normalize_flag else sar
                 rgb = np.dstack((rgb, sar))
             
-            dsm = np.array(Image.open(train_dsm[sample_idx]))
+            dsm = np.array(Image.open(train_dsm[sample_idx])).astype(np.float32)
             dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
             
             # Apply center-cropping for Dublin dataset (500x500 -> 480x480)
@@ -315,15 +315,15 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
         if dataset_name == 'Vaihingen':
             rgb_tile = np.array(Image.open(test_rgb[tile])); 
             rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
-            dsm_tile = np.array(Image.open(test_dsm[tile])); 
+            dsm_tile = np.array(Image.open(test_dsm[tile])).astype(np.float32); 
             dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
             sem_tile = np.array(Image.open(test_sem[tile]))
 
         elif dataset_name == 'DFC2018':
             rgb_tile = np.array(Image.open(test_rgb[tile])); 
             rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
-            dsm_tile = np.array(Image.open(test_dsm[2 * tile]))
-            dem_tile = np.array(Image.open(test_dsm[2 * tile + 1]))
+            dsm_tile = np.array(Image.open(test_dsm[2 * tile])).astype(np.float32)
+            dem_tile = np.array(Image.open(test_dsm[2 * tile + 1])).astype(np.float32)
             dsm_tile = correctTile(dsm_tile)
             dem_tile = correctTile(dem_tile)
             dsm_tile = dsm_tile - dem_tile  # Caution! nDSM here could still contain negative values
@@ -341,7 +341,7 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
             sar_tile = normalize_array(sar_tile, 0, 1) if normalize_flag else sar_tile
             rgb_tile = np.dstack((rgb_tile, sar_tile))
         
-        dsm_tile = np.array(Image.open(test_dsm[tile]))
+        dsm_tile = np.array(Image.open(test_dsm[tile])).astype(np.float32)
         dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
         
         # Apply center-cropping for Dublin dataset (500x500 -> 480x480)
