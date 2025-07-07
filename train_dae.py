@@ -101,15 +101,17 @@ if train_valid_flag:
     # Create combined list of all metrics
     all_metrics = metric_names.copy()
     
-    # Add scalar segmentation metrics
-    for metric in segmentation_scalar_metrics:
-        if metric not in all_metrics:
-            all_metrics.append(metric)
+    # Add scalar segmentation metrics only if semantic segmentation is enabled
+    if sem_flag:
+        for metric in segmentation_scalar_metrics:
+            if metric not in all_metrics:
+                all_metrics.append(metric)
     
-    # Add per-class metrics
-    for metric in segmentation_class_metrics:
-        for class_idx in range(len(semantic_label_map)):
-            all_metrics.append(f"{metric}_class{class_idx}")
+    # Add per-class metrics only if semantic segmentation is enabled
+    if sem_flag:
+        for metric in segmentation_class_metrics:
+            for class_idx in range(len(semantic_label_map)):
+                all_metrics.append(f"{metric}_class{class_idx}")
     
     # Initialize metrics dictionaries with all available metrics
     valid_metrics = {metric: [] for metric in all_metrics}

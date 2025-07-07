@@ -94,7 +94,10 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
         # Initialize the DSM and SEM prediction tensors
         gaussian = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1]])
         dsm_pred = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1]])
-        sem_pred = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1], sem_k])
+        if sem_flag:
+            sem_pred = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1], sem_k])
+        else:
+            sem_pred = None
 
         # Compute DSM estimation
         start = time.time()
@@ -119,25 +122,30 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
                 dsm_output = dsm_output - noise
             
             dsm_output = dsm_output.numpy().squeeze()
-            sem_output = sem_output.numpy().squeeze()
+            if sem_flag:
+                sem_output = sem_output.numpy().squeeze()
 
             dsm_pred[y1:y2, x1:x2] += np.multiply(dsm_output, prob_matrix)
-            sem_pred[y1:y2, x1:x2, :] += np.multiply(sem_output, prob_matrix[:, :, np.newaxis])
+            if sem_flag and sem_pred is not None:
+                sem_pred[y1:y2, x1:x2, :] += np.multiply(sem_output, prob_matrix[:, :, np.newaxis])
             gaussian[y1:y2, x1:x2] += prob_matrix
 
         end = time.time()
 
         # Finalize Gaussian smoothing 
         dsm_pred = np.divide(dsm_pred, gaussian)
-        sem_pred = np.divide(sem_pred, gaussian[:, :, np.newaxis])
-
-        # Calculate SEM metrics - accumulate confusion matrix
-        sem_pred = convert_sem_onehot_to_annotation(sem_pred)
-        confusion_matrix += update_confusion_matrix(sem_pred, sem_tile)
+        
+        # Calculate SEM metrics only if semantic segmentation is enabled and data is available
+        if sem_flag and sem_tile is not None:
+            sem_pred = np.divide(sem_pred, gaussian[:, :, np.newaxis])
+            sem_pred = convert_sem_onehot_to_annotation(sem_pred)
+            confusion_matrix += update_confusion_matrix(sem_pred, sem_tile)
+        else:
+            sem_pred = None
 
         # Fuse DSM prediction with semantic segmentation mask for binary classification tasks
         # This restricts height values to only appear for the class of interest (e.g., buildings)
-        if binary_classification_flag:
+        if binary_classification_flag and sem_flag and sem_tile is not None:
             # Create binary mask for the class of interest from predictions
             pred_mask = (sem_pred == 1).astype(np.float32)
             
@@ -208,17 +216,23 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
             dsm_file_path = os.path.join(dsm_output_dir, filename + '.tif')
             dsm_pred.save(dsm_file_path)
             
-            # Save the predicted SEM with SAR indicator
-            sem_pred = Image.fromarray(sem_pred)
-            sem_output_dir = f"./output/{dataset_name}/{sar_indicator}/sem/"
-            if not os.path.exists(sem_output_dir):
-                os.makedirs(sem_output_dir)
-            sem_file_path = os.path.join(sem_output_dir, filename + '.tif')
-            sem_pred.save(sem_file_path)
+            # Save the predicted SEM with SAR indicator only if semantic segmentation is enabled
+            if sem_flag and sem_pred is not None:
+                sem_pred_img = Image.fromarray(sem_pred)
+                sem_output_dir = f"./output/{dataset_name}/{sar_indicator}/sem/"
+                if not os.path.exists(sem_output_dir):
+                    os.makedirs(sem_output_dir)
+                sem_file_path = os.path.join(sem_output_dir, filename + '.tif')
+                sem_pred_img.save(sem_file_path)
 
-    # Calculate final segmentation metrics from accumulated confusion matrix
-    iou_per_class, f1_per_class, precision_per_class, recall_per_class, miou, overall_accuracy, FWIoU = \
-        calculate_segmentation_metrics_from_confusion_matrix(confusion_matrix)
+    # Calculate final segmentation metrics from accumulated confusion matrix only if semantic segmentation is enabled
+    if sem_flag:
+        iou_per_class, f1_per_class, precision_per_class, recall_per_class, miou, overall_accuracy, FWIoU = \
+            calculate_segmentation_metrics_from_confusion_matrix(confusion_matrix)
+    else:
+        # Set default values for segmentation metrics when semantic segmentation is disabled
+        iou_per_class = f1_per_class = precision_per_class = recall_per_class = []
+        miou = overall_accuracy = FWIoU = 0.0
 
     # Calculate other averages
     avg_mse = total_mse / tilesLen

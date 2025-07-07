@@ -76,7 +76,11 @@ def collect_tilenames(mode):
         base_path = shortcut_path + dataset_name + '/' + mode + '/'
         
         # Define subfolder mappings - all regular datasets use same structure
-        subfolders = ['rgb', 'dsm', 'sem']
+        subfolders = ['rgb', 'dsm']
+        # Only add 'sem' subfolder if the dataset has semantic annotations
+        if not any(dataset_name.startswith(d) for d in no_sem_datasets):
+            subfolders.append('sem')
+        # Add SAR subfolder if available
         if any(dataset_name.startswith(d) for d in sar_datasets):
             subfolders.append('sar')
         
@@ -145,9 +149,9 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
     """
     rgb_batch = []
     dsm_batch = []
-    sem_batch = []
-    norm_batch = []
-    edge_batch = []
+    sem_batch = [] if sem_flag else None
+    norm_batch = [] if norm_flag else None
+    edge_batch = [] if edge_flag else None
 
     # Determine the actual batch size to generate based on multi-GPU configuration and model type
     # IMPORTANT: For multi-GPU, we generate global_batch_size samples total, which TensorFlow
@@ -207,10 +211,13 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             c = random.randint(0, w - cropSize)
             rgb = rgb_tile[r:r + cropSize, c:c + cropSize]
             dsm = dsm_tile[r:r + cropSize, c:c + cropSize]
-            
+
             if mtl_flag:
-                sem = sem_tile[r:r + cropSize, c:c + cropSize]
-                if (dataset_name == 'DFC2018'): sem = sem[..., np.newaxis]
+                # Handle semantic labels for large tile datasets only if sem_flag is enabled
+                if sem_flag:
+                    sem = sem_tile[r:r + cropSize, c:c + cropSize]
+                    if (dataset_name == 'DFC2018'): sem = sem[..., np.newaxis]
+                
                 if norm_flag:
                     norm = norm_tile[r:r + cropSize, c:c + cropSize]
                 if edge_flag:
@@ -235,7 +242,10 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
             
             if mtl_flag:
-                sem = np.array(Image.open(train_sem[sample_idx]))
+                # Only load semantic labels if sem_flag is enabled
+                if sem_flag:
+                    sem = np.array(Image.open(train_sem[sample_idx]))
+                
                 if norm_flag:
                     norm = genNormals(dsm); 
                     norm = norm if normalize_flag else (norm * 255).astype(np.uint8)
@@ -246,20 +256,28 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
         rgb_batch.append(rgb)
         dsm_batch.append(dsm)
         if mtl_flag:
-            sem_batch.append(sem_to_onehot(sem))
-            if norm_flag:
+            if sem_flag and sem_batch is not None:
+                sem_batch.append(sem_to_onehot(sem))
+            if norm_flag and norm_batch is not None:
                 norm_batch.append(norm)
-            if edge_flag:
+            if edge_flag and edge_batch is not None:
                 edge_batch.append(edge)
 
     rgb_batch = np.array(rgb_batch)
     dsm_batch = np.array(dsm_batch)[..., np.newaxis]
     if mtl_flag:
-        sem_batch = np.array(sem_batch)
-        if norm_flag:
+        if sem_flag and sem_batch is not None:
+            sem_batch = np.array(sem_batch)
+        else:
+            sem_batch = []  # Return empty list when sem_flag is False
+        if norm_flag and norm_batch is not None:
             norm_batch = np.array(norm_batch)
-        if edge_flag:
+        else:
+            norm_batch = []  # Return empty list when norm_flag is False
+        if edge_flag and edge_batch is not None:
             edge_batch = np.array(edge_batch)[..., np.newaxis]
+        else:
+            edge_batch = []  # Return empty list when edge_flag is False
     
     return rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch
 
@@ -320,7 +338,13 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
         
         dsm_tile = np.array(Image.open(test_dsm[tile]))
         dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
-        sem_tile = np.array(Image.open(test_sem[tile]))
+        
+        # Handle semantic labels - only load if the dataset has them
+        if not any(dataset_name.startswith(d) for d in no_sem_datasets):
+            sem_tile = np.array(Image.open(test_sem[tile]))
+        else:
+            # Return None for datasets without semantic labels
+            sem_tile = None
         
     return rgb_tile, dsm_tile, sem_tile
 

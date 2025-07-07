@@ -58,7 +58,7 @@ dataset_configs = {
     'DFC2019_crp256': (256, 10),
     'DFC2019_crp512': (512, 2),
     'DFC2023': (512, 2),
-    'Dublin': (512, 2),
+    'Dublin': (500, 2),  # Updated to match actual Dublin image size
 }
 
 # Get cropSize and batchSize based on dataset name, with fallback logic
@@ -220,15 +220,24 @@ elif dataset_name.startswith('DFC2023'):
     w1, w2, w3, w4 = (1e-3, 1.0, 1e-5, 1e-3)  # weights for: dsm, sem, norm, edge
 
 elif dataset_name.startswith('Dublin'):
-    label_codes = [0, 1]  # Binary classification: background and building
-    w1, w2, w3, w4 = (1e-3, 1.0, 1e-5, 1e-3)  # weights for: dsm, sem, norm, edge
+    # Dublin dataset has no semantic segmentation labels
+    label_codes = [0]  # Dummy label code for datasets without semantic segmentation
+    w1, w2, w3, w4 = (1e-3, 0.0, 1e-5, 1e-3)  # weights for: dsm, sem (disabled), norm, edge
 
-# Create dictionary and indicator for semantic label codes
-semantic_label_map = {k: v for k, v in enumerate(label_codes)}
-sem_k = len(semantic_label_map)
-
-# Check if the dataset is binary classification based on label codes
-binary_classification_flag = len(label_codes) == 2 and set(label_codes) == {0, 1}
+# Handle datasets without semantic labels
+if any(dataset_name.startswith(d) for d in no_sem_datasets):
+    # For datasets without semantic labels, set minimal configuration
+    # Note: This dummy mapping is only for configuration consistency
+    # Actual semantic processing is disabled via sem_flag=False
+    semantic_label_map = {0: 0}  # Minimal mapping for config consistency
+    sem_k = 1  # One dummy class for config purposes only
+    binary_classification_flag = False
+else:
+    # Create dictionary and indicator for semantic label codes
+    semantic_label_map = {k: v for k, v in enumerate(label_codes)}
+    sem_k = len(semantic_label_map)
+    # Check if the dataset is binary classification based on label codes
+    binary_classification_flag = len(label_codes) == 2 and set(label_codes) == {0, 1}
 
 # Multi-GPU Strategy Configuration
 # This section handles the TensorFlow distributed strategy for multi-GPU training
