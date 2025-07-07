@@ -14,35 +14,8 @@ from typing import Optional, List, Tuple
 import logging
 from config import *
 
+
 Image.MAX_IMAGE_PIXELS = 1000000000
-
-
-def center_crop_to_size(image, target_size):
-    """
-    Center crop an image to a target size.
-    
-    Parameters:
-    - image (numpy.ndarray): Input image array
-    - target_size (int): Target size for both width and height
-    
-    Returns:
-    - numpy.ndarray: Center-cropped image
-    """
-    h, w = image.shape[:2]
-    if h == target_size and w == target_size:
-        return image  # No cropping needed
-    
-    # Calculate crop boundaries for center cropping
-    start_h = (h - target_size) // 2
-    start_w = (w - target_size) // 2
-    end_h = start_h + target_size
-    end_w = start_w + target_size
-    
-    if len(image.shape) == 3:
-        return image[start_h:end_h, start_w:end_w, :]
-    else:
-        return image[start_h:end_h, start_w:end_w]
-
 
 def collect_tilenames(mode):
     """
@@ -549,6 +522,33 @@ def correctTile(tile):
     tile[tile == 123456] = np.min(tile)
 
     return tile
+
+
+def center_crop_to_size(image, target_size):
+    """
+    Center crop an image to a target size.
+    
+    Parameters:
+    - image (numpy.ndarray): Input image array
+    - target_size (int): Target size for both width and height
+    
+    Returns:
+    - numpy.ndarray: Center-cropped image
+    """
+    h, w = image.shape[:2]
+    if h == target_size and w == target_size:
+        return image  # No cropping needed
+    
+    # Calculate crop boundaries for center cropping
+    start_h = (h - target_size) // 2
+    start_w = (w - target_size) // 2
+    end_h = start_h + target_size
+    end_w = start_w + target_size
+    
+    if len(image.shape) == 3:
+        return image[start_h:end_h, start_w:end_w, :]
+    else:
+        return image[start_h:end_h, start_w:end_w]
 
 
 def gaussian_kernel(width, height, sigma=0.2, mu=0.0):
