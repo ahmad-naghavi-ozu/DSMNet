@@ -58,7 +58,7 @@ dataset_configs = {
     'DFC2019_crp256': (256, 10),
     'DFC2019_crp512': (512, 2),
     'DFC2023': (512, 2),
-    'Dublin': (500, 2),  # Updated to match actual Dublin image size
+    'Dublin': (480, 2),  # Updated to match model output dimensions (480 is divisible by 32)
 }
 
 # Get cropSize and batchSize based on dataset name, with fallback logic

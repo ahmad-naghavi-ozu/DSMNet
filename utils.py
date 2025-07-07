@@ -17,6 +17,33 @@ from config import *
 Image.MAX_IMAGE_PIXELS = 1000000000
 
 
+def center_crop_to_size(image, target_size):
+    """
+    Center crop an image to a target size.
+    
+    Parameters:
+    - image (numpy.ndarray): Input image array
+    - target_size (int): Target size for both width and height
+    
+    Returns:
+    - numpy.ndarray: Center-cropped image
+    """
+    h, w = image.shape[:2]
+    if h == target_size and w == target_size:
+        return image  # No cropping needed
+    
+    # Calculate crop boundaries for center cropping
+    start_h = (h - target_size) // 2
+    start_w = (w - target_size) // 2
+    end_h = start_h + target_size
+    end_w = start_w + target_size
+    
+    if len(image.shape) == 3:
+        return image[start_h:end_h, start_w:end_w, :]
+    else:
+        return image[start_h:end_h, start_w:end_w]
+
+
 def collect_tilenames(mode):
     """
     Collects filenames for RGB, SAR, DSM, and SEM images based on the specified dataset and mode (train, valid, or test).
@@ -241,6 +268,11 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             dsm = np.array(Image.open(train_dsm[sample_idx]))
             dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
             
+            # Apply center-cropping for Dublin dataset (500x500 -> 480x480)
+            if dataset_name == 'Dublin':
+                rgb = center_crop_to_size(rgb, cropSize)
+                dsm = center_crop_to_size(dsm, cropSize)
+            
             if mtl_flag:
                 # Only load semantic labels if sem_flag is enabled
                 if sem_flag:
@@ -338,6 +370,11 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
         
         dsm_tile = np.array(Image.open(test_dsm[tile]))
         dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
+        
+        # Apply center-cropping for Dublin dataset (500x500 -> 480x480)
+        if dataset_name == 'Dublin':
+            rgb_tile = center_crop_to_size(rgb_tile, cropSize)
+            dsm_tile = center_crop_to_size(dsm_tile, cropSize)
         
         # Handle semantic labels - only load if the dataset has them
         if not any(dataset_name.startswith(d) for d in no_sem_datasets):
