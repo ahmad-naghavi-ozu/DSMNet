@@ -88,7 +88,13 @@ def collect_tilenames(mode):
             folder_path = base_path + subfolder + '/'
             if os.path.exists(folder_path):
                 for filename in os.listdir(folder_path):
-                    if filename.endswith(('.tif', '.jpg', '.png')):
+                    if filename.endswith(('.tif', '.tiff', '.TIF', '.TIFF', 
+                                        '.jpg', '.jpeg', '.JPG', '.JPEG',
+                                        '.png', '.PNG', '.bmp', '.BMP',
+                                        '.jp2', '.JP2', '.gif', '.GIF',
+                                        '.webp', '.WEBP', '.pbm', '.PBM',
+                                        '.pgm', '.PGM', '.ppm', '.PPM',
+                                        '.tga', '.TGA', '.exr', '.EXR')):
                         filepath = folder_path + filename
                         if subfolder == 'rgb':
                             all_rgb.append(filepath)
