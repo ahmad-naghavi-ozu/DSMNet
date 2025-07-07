@@ -20,17 +20,30 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023Amini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'DFC2023S'  # Change this to the desired dataset name
+dataset_name = 'Dublin'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
 # globally available to other projects as well. You should end the path with a '/'
 shortcut_path = '../datasets/'  # Change this to the desired path
 
+# Dataset organization configuration
+# Large tile datasets: require random patch extraction
+large_tile_datasets = ['Vaihingen', 'DFC2018']
+# Regular size datasets: use standard folder structure (train/valid/test with rgb/dsm/sem/sar subfolders)
+regular_size_datasets = ['DFC2019_crp256', 'DFC2019_crp512', 'DFC2023', 'Vaihingen_crp256', 'DFC2018_crp256', 'Dublin']
+
+# Datasets with SAR data available
+sar_datasets = ['DFC2023']
+
+# Datasets without semantic segmentation labels
+# These datasets will not have semantic segmentation labels, thus the model will not be trained for that
+# They will only be trained for DSM and surface normals, e.g., Dublin
+no_sem_datasets = ['Dublin']  # Datasets without semantic segmentation labels
+
 # Whether the input image tile is large, thus random patches are selected out of that, (DFC2018 and Vaihingen)
 # Or the input image is like a normal patch, thus as a whole could be fed to the model, (DFC2023)
-large_tile_data = ['Vaihingen', 'DFC2018']
-large_tile_mode = dataset_name in large_tile_data
+large_tile_mode = dataset_name in large_tile_datasets
 
 # Define datasets that use RGB triplets for semantic labels
 rgb_label_datasets = ['Vaihingen', 'Vaihingen_crp256']  # Add other RGB-triplet datasets here
@@ -45,6 +58,7 @@ dataset_configs = {
     'DFC2019_crp256': (256, 10),
     'DFC2019_crp512': (512, 2),
     'DFC2023': (512, 2),
+    'Dublin': (512, 2),
 }
 
 # Get cropSize and batchSize based on dataset name, with fallback logic
@@ -68,8 +82,7 @@ else:
 # However, in such a case, as the DenseNet architecture cannot capture more than 3 channels for 
 # its input, thus we should use a convolution layer prior to that to convert the 4-channel input 
 # to a 3-channel one.
-datasets_with_sar = ['DFC2023']  # List of datasets that support SAR mode
-sar_path_indicator = dataset_name.startswith(tuple(datasets_with_sar))
+sar_path_indicator = any(dataset_name.startswith(d) for d in sar_datasets)
 sar_mode = False
 
 # Normalization flag for input RGB, DSM, etc
@@ -174,6 +187,7 @@ canny_lt, canny_ht = 50, 150
 
 # Set flags for additive heads of MTL, viz semantic segmentation, surface normals, and edgemaps
 sem_flag, norm_flag, edge_flag = True, True, False
+sem_flag = False if dataset_name in no_sem_datasets else sem_flag  # Disable semantic segmentation for datasets without labels
 
 # Set flag for MTL heads interconnection mode, either fully intertwined ('full') or just for the DSM head ('dsm')
 mtl_head_mode = 'dsm'  # 'full' or 'dsm'
@@ -203,6 +217,10 @@ elif dataset_name.startswith('DFC2019'):
 
 elif dataset_name.startswith('DFC2023'):
     label_codes = [0, 1]
+    w1, w2, w3, w4 = (1e-3, 1.0, 1e-5, 1e-3)  # weights for: dsm, sem, norm, edge
+
+elif dataset_name.startswith('Dublin'):
+    label_codes = [0, 1]  # Binary classification: background and building
     w1, w2, w3, w4 = (1e-3, 1.0, 1e-5, 1e-3)  # weights for: dsm, sem, norm, edge
 
 # Create dictionary and indicator for semantic label codes

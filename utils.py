@@ -29,215 +29,73 @@ def collect_tilenames(mode):
     """
     all_rgb, all_sar, all_dsm, all_sem = [], [], [], []
 
-    # Determine base paths
-    if dataset_name == 'Vaihingen':
-        base_path = shortcut_path + 'Vaihingen/'
-        train_frames = [1, 3, 5, 7, 11, 13, 15, 17, 21, 23, 26, 30, 34]
-        valid_frames = [28, 32, 37]
-        test_frames = [2, 4, 6, 8, 10, 12, 14, 16, 20, 22, 24, 27, 29, 31, 33, 35, 38]
-
-    elif dataset_name == 'DFC2018':
-        base_path = shortcut_path + 'DFC2018/'
-        train_frames = ['UH_NAD83_272056_3289689', 'UH_NAD83_272652_3289689', 'UH_NAD83_273248_3289689']
-        valid_frames = ['UH_NAD83_273844_3289689']
-        test_frames = ['UH_NAD83_271460_3289689', 'UH_NAD83_271460_3290290', 'UH_NAD83_272056_3290290',
-                       'UH_NAD83_272652_3290290', 'UH_NAD83_273248_3290290', 'UH_NAD83_273844_3290290',
-                       'UH_NAD83_274440_3289689', 'UH_NAD83_274440_3290290', 'UH_NAD83_275036_3289689',
-                       'UH_NAD83_275036_3290290']
-    
-    elif dataset_name.startswith('DFC2019'):
-        if mode == 'train':
-            base_path = shortcut_path + dataset_name + '/Train/'
-        elif mode == 'valid':
-            base_path = shortcut_path + dataset_name + '/Valid/'
-        elif mode == 'test':
-            base_path = shortcut_path + dataset_name + '/Test/'
-
-    elif dataset_name.startswith('DFC2023'):
-        if mode == 'train':
-            base_path = shortcut_path + dataset_name + '/train/'
-        elif mode == 'valid':
-            base_path = shortcut_path + dataset_name + '/valid/'
-        elif mode == 'test':
-            base_path = shortcut_path + dataset_name + '/test/'
-
-    elif dataset_name.startswith('Vaihingen_crp256'):
-        if mode == 'train':
-            base_path = shortcut_path + dataset_name + '/train/'
-        elif mode == 'valid':
-            base_path = shortcut_path + dataset_name + '/valid/'
-        elif mode == 'test':
-            base_path = shortcut_path + dataset_name + '/test/'
-
-    
-    # Append relative addresses w.r.t. the process mode
-    if mode == 'train':
+    # Handle large tile datasets with predefined frames
+    if dataset_name in large_tile_datasets:
         if dataset_name == 'Vaihingen':
-            for frame in train_frames:
+            base_path = shortcut_path + 'Vaihingen/'
+            train_frames = [1, 3, 5, 7, 11, 13, 15, 17, 21, 23, 26, 30, 34]
+            valid_frames = [28, 32, 37]
+            test_frames = [2, 4, 6, 8, 10, 12, 14, 16, 20, 22, 24, 27, 29, 31, 33, 35, 38]
+            
+            if mode == 'train':
+                frames = train_frames
+            elif mode == 'valid':
+                frames = valid_frames
+            else:
+                frames = test_frames
+                
+            for frame in frames:
                 all_rgb.append(base_path + 'RGB/top_mosaic_09cm_area' + str(frame) + '.tif')
                 all_dsm.append(base_path + 'NDSM/dsm_09cm_matching_area' + str(frame) + '.jpg')
                 all_sem.append(base_path + 'SEM/top_mosaic_09cm_area' + str(frame) + '.tif')
+
         elif dataset_name == 'DFC2018':
-            for frame in train_frames:
+            base_path = shortcut_path + 'DFC2018/'
+            train_frames = ['UH_NAD83_272056_3289689', 'UH_NAD83_272652_3289689', 'UH_NAD83_273248_3289689']
+            valid_frames = ['UH_NAD83_273844_3289689']
+            test_frames = ['UH_NAD83_271460_3289689', 'UH_NAD83_271460_3290290', 'UH_NAD83_272056_3290290',
+                           'UH_NAD83_272652_3290290', 'UH_NAD83_273248_3290290', 'UH_NAD83_273844_3290290',
+                           'UH_NAD83_274440_3289689', 'UH_NAD83_274440_3290290', 'UH_NAD83_275036_3289689',
+                           'UH_NAD83_275036_3290290']
+            
+            if mode == 'train':
+                frames = train_frames
+            elif mode == 'valid':
+                frames = valid_frames
+            else:
+                frames = test_frames
+                
+            for frame in frames:
                 all_rgb.append(base_path + 'RGB/' + frame + '.tif')
                 all_dsm.append(base_path + 'DSM/' + frame + '.tif')
                 all_dsm.append(base_path + 'DEM/' + frame + '.tif')
                 all_sem.append(base_path + 'SEM/' + frame + '.tif')
-        elif dataset_name.startswith('DFC2019'):
-            for filename in os.listdir(base_path + 'RGB/'):
-                if filename.endswith('.tif'):
-                    # Extract the base name and number from RGB file
-                    base_name = '_'.join(filename.split('_')[:-2])  # Gets 'JAX_004_006'
-                    number = filename.split('_')[-1].split('.')[0]  # Gets 'xx'
-                    
-                    # Construct corresponding AGL and CLS filenames
-                    agl_file = f"{base_name}_AGL_{number}.tif"
-                    cls_file = f"{base_name}_CLS_{number}.tif"
-                    
-                    # Only add if both corresponding files exist
-                    if os.path.exists(base_path + 'Truth/' + agl_file) and os.path.exists(base_path + 'Truth/' + cls_file):
-                        all_rgb.append(base_path + 'RGB/' + filename)
-                        all_dsm.append(base_path + 'Truth/' + agl_file)
-                        all_sem.append(base_path + 'Truth/' + cls_file)
-        elif dataset_name.startswith('DFC2023'):
-            for subfolder in ['rgb', 'sar', 'dsm', 'sem']:
-                folder_path = base_path + subfolder + '/'
-                for filename in os.listdir(folder_path):
-                    if filename.endswith('.tif') or filename.endswith('.jpg') or filename.endswith('.png'):
-                        filepath = folder_path + filename
-                        if subfolder == 'rgb':
-                            all_rgb.append(filepath)
-                        elif subfolder == 'sar':
-                            all_sar.append(filepath)
-                        elif subfolder == 'dsm':
-                            all_dsm.append(filepath)
-                        elif subfolder == 'sem':
-                            all_sem.append(filepath)
-        elif dataset_name.startswith('Vaihingen_crp256'):
-            for subfolder in ['rgb', 'ndsm', 'sem']:
-                folder_path = base_path + subfolder + '/'
-                for filename in os.listdir(folder_path):
-                    if filename.endswith('.tif') or filename.endswith('.jpg') or filename.endswith('.png'):
-                        filepath = folder_path + filename
-                        if subfolder == 'rgb':
-                            all_rgb.append(filepath)
-                        elif subfolder == 'ndsm':
-                            all_dsm.append(filepath)
-                        elif subfolder == 'sem':
-                            all_sem.append(filepath)
 
-    elif mode == 'valid':
-        if dataset_name == 'Vaihingen':
-            for frame in valid_frames:
-                all_rgb.append(base_path + 'RGB/top_mosaic_09cm_area' + str(frame) + '.tif')
-                all_dsm.append(base_path + 'NDSM/dsm_09cm_matching_area' + str(frame) + '.jpg')
-                all_sem.append(base_path + 'SEM/top_mosaic_09cm_area' + str(frame) + '.tif')
-        elif dataset_name == 'DFC2018':
-            for frame in valid_frames:
-                all_rgb.append(base_path + 'RGB/' + frame + '.tif')
-                all_dsm.append(base_path + 'DSM/' + frame + '.tif')
-                all_dsm.append(base_path + 'DEM/' + frame + '.tif')
-                all_sem.append(base_path + 'SEM/' + frame + '.tif')
-        elif dataset_name.startswith('DFC2019'):
-            for filename in os.listdir(base_path + 'RGB/'):
-                if filename.endswith('.tif'):
-                    # Extract the base name and number from RGB file
-                    base_name = '_'.join(filename.split('_')[:-2])  # Gets 'JAX_004_006'
-                    number = filename.split('_')[-1].split('.')[0]  # Gets 'xx'
-                    
-                    # Construct corresponding AGL and CLS filenames
-                    agl_file = f"{base_name}_AGL_{number}.tif"
-                    cls_file = f"{base_name}_CLS_{number}.tif"
-                    
-                    # Only add if both corresponding files exist
-                    if os.path.exists(base_path + 'Truth/' + agl_file) and os.path.exists(base_path + 'Truth/' + cls_file):
-                        all_rgb.append(base_path + 'RGB/' + filename)
-                        all_dsm.append(base_path + 'Truth/' + agl_file)
-                        all_sem.append(base_path + 'Truth/' + cls_file)
-        elif dataset_name.startswith('DFC2023'):
-            for subfolder in ['rgb', 'sar', 'dsm', 'sem']:
-                folder_path = base_path + subfolder + '/'
-                for filename in os.listdir(folder_path):
-                    if filename.endswith('.tif') or filename.endswith('.jpg') or filename.endswith('.png'):
-                        filepath = folder_path + filename
-                        if subfolder == 'rgb':
-                            all_rgb.append(filepath)
-                        elif subfolder == 'sar':
-                            all_sar.append(filepath)
-                        elif subfolder == 'dsm':
-                            all_dsm.append(filepath)
-                        elif subfolder == 'sem':
-                            all_sem.append(filepath)
-        elif dataset_name.startswith('Vaihingen_crp256'):
-            for subfolder in ['rgb', 'ndsm', 'sem']:
-                folder_path = base_path + subfolder + '/'
-                for filename in os.listdir(folder_path):
-                    if filename.endswith('.tif') or filename.endswith('.jpg') or filename.endswith('.png'):
-                        filepath = folder_path + filename
-                        if subfolder == 'rgb':
-                            all_rgb.append(filepath)
-                        elif subfolder == 'ndsm':
-                            all_dsm.append(filepath)
-                        elif subfolder == 'sem':
-                            all_sem.append(filepath)
+    # Handle regular-sized datasets with standard folder structure
+    else:
+        base_path = shortcut_path + dataset_name + '/' + mode + '/'
         
-    elif mode == 'test':
-        if dataset_name == 'Vaihingen':
-            for frame in test_frames:
-                all_rgb.append(base_path + 'RGB/top_mosaic_09cm_area' + str(frame) + '.tif')
-                all_dsm.append(base_path + 'NDSM/dsm_09cm_matching_area' + str(frame) + '.jpg')
-                all_sem.append(base_path + 'SEM/top_mosaic_09cm_area' + str(frame) + '.tif')
-        elif dataset_name == 'DFC2018':
-            for frame in test_frames:
-                all_rgb.append(base_path + 'RGB/' + frame + '.tif')
-                all_dsm.append(base_path + 'DSM/' + frame + '.tif')
-                all_dsm.append(base_path + 'DEM/' + frame + '.tif')
-                all_sem.append(base_path + 'SEM/' + frame + '.tif')
-        elif dataset_name.startswith('DFC2019'):
-            for filename in os.listdir(base_path + 'RGB/'):
-                if filename.endswith('.tif'):
-                    # Extract the base name and number from RGB file
-                    base_name = '_'.join(filename.split('_')[:-2])  # Gets 'JAX_004_006'
-                    number = filename.split('_')[-1].split('.')[0]  # Gets 'xx'
-                    
-                    # Construct corresponding AGL and CLS filenames
-                    agl_file = f"{base_name}_AGL_{number}.tif"
-                    cls_file = f"{base_name}_CLS_{number}.tif"
-                    
-                    # Only add if both corresponding files exist
-                    if os.path.exists(base_path + 'Truth/' + agl_file) and os.path.exists(base_path + 'Truth/' + cls_file):
-                        all_rgb.append(base_path + 'RGB/' + filename)
-                        all_dsm.append(base_path + 'Truth/' + agl_file)
-                        all_sem.append(base_path + 'Truth/' + cls_file)
-        elif dataset_name.startswith('DFC2023'):
-            for subfolder in ['rgb', 'sar', 'dsm', 'sem']:
-                folder_path = base_path + subfolder + '/'
+        # Define subfolder mappings - all regular datasets use same structure
+        subfolders = ['rgb', 'dsm', 'sem']
+        if any(dataset_name.startswith(d) for d in sar_datasets):
+            subfolders.append('sar')
+        
+        for subfolder in subfolders:
+            folder_path = base_path + subfolder + '/'
+            if os.path.exists(folder_path):
                 for filename in os.listdir(folder_path):
-                    if filename.endswith('.tif') or filename.endswith('.jpg') or filename.endswith('.png'):
+                    if filename.endswith(('.tif', '.jpg', '.png')):
                         filepath = folder_path + filename
                         if subfolder == 'rgb':
                             all_rgb.append(filepath)
                         elif subfolder == 'sar':
                             all_sar.append(filepath)
                         elif subfolder == 'dsm':
-                            all_dsm.append(filepath)
-                        elif subfolder == 'sem':
-                            all_sem.append(filepath)
-        elif dataset_name.startswith('Vaihingen_crp256'):
-            for subfolder in ['rgb', 'ndsm', 'sem']:
-                folder_path = base_path + subfolder + '/'
-                for filename in os.listdir(folder_path):
-                    if filename.endswith('.tif') or filename.endswith('.jpg') or filename.endswith('.png'):
-                        filepath = folder_path + filename
-                        if subfolder == 'rgb':
-                            all_rgb.append(filepath)
-                        elif subfolder == 'ndsm':
                             all_dsm.append(filepath)
                         elif subfolder == 'sem':
                             all_sem.append(filepath)
         
     samples_no = len(all_rgb)
-
     return all_rgb, all_sar, all_dsm, all_sem, samples_no
 
 
@@ -306,7 +164,6 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
     if large_tile_mode:
         idx = random.randint(0, len(train_rgb) - 1)
         if dataset_name == 'Vaihingen':
-            # rgb_tile, dsm_tile, sem_tile, norm_tile, edge_tile = load_items(train_rgb, train_dsm, train_sem, idx, normalize_flag)
             rgb_tile = np.array(Image.open(train_rgb[idx])); 
             rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
             dsm_tile = np.array(Image.open(train_dsm[idx])); 
@@ -350,6 +207,7 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             c = random.randint(0, w - cropSize)
             rgb = rgb_tile[r:r + cropSize, c:c + cropSize]
             dsm = dsm_tile[r:r + cropSize, c:c + cropSize]
+            
             if mtl_flag:
                 sem = sem_tile[r:r + cropSize, c:c + cropSize]
                 if (dataset_name == 'DFC2018'): sem = sem[..., np.newaxis]
@@ -361,55 +219,29 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             # Choose batch items in order based on every dataset specifics
             # For non-large-tile datasets, we need to calculate the correct sample index
             # based on the actual batch size being used
-            if dataset_name.startswith('DFC2019'):
-                sample_idx = (iter - 1) * actual_batch_size + i
-                rgb = np.array(Image.open(train_rgb[sample_idx]))
-                rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
-                dsm = np.array(Image.open(train_dsm[sample_idx]))
-                dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
-                if mtl_flag:
-                    sem = np.array(Image.open(train_sem[sample_idx]))
-                    if norm_flag:
-                        norm = genNormals(dsm); 
-                        norm = norm if normalize_flag else (norm * 255).astype(np.uint8)
-                    if edge_flag:
-                        edge = genEdgeMap(dsm); 
-                        edge = normalize_array(edge, 0, 1) if normalize_flag else edge
-
-            if dataset_name.startswith('DFC2023'):
-                sample_idx = (iter - 1) * actual_batch_size + i
-                rgb = np.array(Image.open(train_rgb[sample_idx]))
-                rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
-                if sar_mode:
-                    sar = np.array(Image.open(train_sar[sample_idx]))
-                    sar = normalize_array(sar, 0, 1) if normalize_flag else sar
-                    rgb = np.dstack((rgb, sar))
-                dsm = np.array(Image.open(train_dsm[sample_idx]))
-                dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
-
-                if mtl_flag:
-                    sem = np.array(Image.open(train_sem[sample_idx]))
-                    if norm_flag:
-                        norm = genNormals(dsm); 
-                        norm = norm if normalize_flag else (norm * 255).astype(np.uint8)
-                    if edge_flag:
-                        edge = genEdgeMap(dsm); 
-                        edge = normalize_array(edge, 0, 1) if normalize_flag else edge
-
-            if dataset_name.startswith('Vaihingen_crp256'):
-                sample_idx = (iter - 1) * actual_batch_size + i
-                rgb = np.array(Image.open(train_rgb[sample_idx]))
-                rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
-                dsm = np.array(Image.open(train_dsm[sample_idx]))
-                dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
-                if mtl_flag:
-                    sem = np.array(Image.open(train_sem[sample_idx]))
-                    if norm_flag:
-                        norm = genNormals(dsm); 
-                        norm = norm if normalize_flag else (norm * 255).astype(np.uint8)
-                    if edge_flag:
-                        edge = genEdgeMap(dsm); 
-                        edge = normalize_array(edge, 0, 1) if normalize_flag else edge
+            sample_idx = (iter - 1) * actual_batch_size + i
+            
+            # Handle all regular-sized datasets with standard folder structure
+            rgb = np.array(Image.open(train_rgb[sample_idx]))
+            rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
+            
+            # Add SAR channels if available and enabled
+            if sar_mode and any(dataset_name.startswith(d) for d in sar_datasets):
+                sar = np.array(Image.open(train_sar[sample_idx]))
+                sar = normalize_array(sar, 0, 1) if normalize_flag else sar
+                rgb = np.dstack((rgb, sar))
+            
+            dsm = np.array(Image.open(train_dsm[sample_idx]))
+            dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
+            
+            if mtl_flag:
+                sem = np.array(Image.open(train_sem[sample_idx]))
+                if norm_flag:
+                    norm = genNormals(dsm); 
+                    norm = norm if normalize_flag else (norm * 255).astype(np.uint8)
+                if edge_flag:
+                    edge = genEdgeMap(dsm); 
+                    edge = normalize_array(edge, 0, 1) if normalize_flag else edge
 
         rgb_batch.append(rgb)
         dsm_batch.append(dsm)
@@ -455,46 +287,38 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
             - normalize_flag: Controls whether to normalize the data
             - sar_mode: Controls whether to include SAR data for DFC2023 datasets
     """
-    if dataset_name == 'Vaihingen':
-        rgb_tile = np.array(Image.open(test_rgb[tile])); 
-        rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
-        dsm_tile = np.array(Image.open(test_dsm[tile])); 
-        dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
-        sem_tile = np.array(Image.open(test_sem[tile]))
+    # Handle large tile datasets
+    if dataset_name in large_tile_datasets:
+        if dataset_name == 'Vaihingen':
+            rgb_tile = np.array(Image.open(test_rgb[tile])); 
+            rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+            dsm_tile = np.array(Image.open(test_dsm[tile])); 
+            dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
+            sem_tile = np.array(Image.open(test_sem[tile]))
 
-    elif dataset_name == 'DFC2018':
-        rgb_tile = np.array(Image.open(test_rgb[tile])); 
-        rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
-        dsm_tile = np.array(Image.open(test_dsm[2 * tile]))
-        dem_tile = np.array(Image.open(test_dsm[2 * tile + 1]))
-        dsm_tile = correctTile(dsm_tile)
-        dem_tile = correctTile(dem_tile)
-        dsm_tile = dsm_tile - dem_tile  # Caution! nDSM here could still contain negative values
-        dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
-        sem_tile = np.array(Image.open(test_sem[tile]))
+        elif dataset_name == 'DFC2018':
+            rgb_tile = np.array(Image.open(test_rgb[tile])); 
+            rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+            dsm_tile = np.array(Image.open(test_dsm[2 * tile]))
+            dem_tile = np.array(Image.open(test_dsm[2 * tile + 1]))
+            dsm_tile = correctTile(dsm_tile)
+            dem_tile = correctTile(dem_tile)
+            dsm_tile = dsm_tile - dem_tile  # Caution! nDSM here could still contain negative values
+            dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
+            sem_tile = np.array(Image.open(test_sem[tile]))
 
-    elif dataset_name.startswith('DFC2019'):
+    # Handle regular-sized datasets with unified approach
+    else:
         rgb_tile = np.array(Image.open(test_rgb[tile])); 
         rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
-        dsm_tile = np.array(Image.open(test_dsm[tile])); 
-        dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
-        sem_tile = np.array(Image.open(test_sem[tile]))
-
-    elif dataset_name.startswith('DFC2023'):
-        rgb_tile = np.array(Image.open(test_rgb[tile])); 
-        rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
-        if sar_mode:
+        
+        # Add SAR channels if available and enabled
+        if sar_mode and any(dataset_name.startswith(d) for d in sar_datasets):
             sar_tile = np.array(Image.open(test_sar[tile])); 
             sar_tile = normalize_array(sar_tile, 0, 1) if normalize_flag else sar_tile
             rgb_tile = np.dstack((rgb_tile, sar_tile))
+        
         dsm_tile = np.array(Image.open(test_dsm[tile]))
-        dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
-        sem_tile = np.array(Image.open(test_sem[tile]))
-
-    elif dataset_name.startswith('Vaihingen_crp256'):
-        rgb_tile = np.array(Image.open(test_rgb[tile])); 
-        rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
-        dsm_tile = np.array(Image.open(test_dsm[tile])); 
         dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
         sem_tile = np.array(Image.open(test_sem[tile]))
         
