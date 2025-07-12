@@ -248,7 +248,7 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
             
             # Apply center-cropping for Dublin dataset (500x500 -> 480x480)
-            if dataset_name == 'Dublin':
+            if any(dataset_name.startswith(d) for d in center_crop_datasets):
                 rgb = center_crop_to_size(rgb, cropSize)
                 dsm = center_crop_to_size(dsm, cropSize)
             
@@ -351,7 +351,7 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
         dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
         
         # Apply center-cropping for Dublin dataset (500x500 -> 480x480)
-        if dataset_name == 'Dublin':
+        if any(dataset_name.startswith(d) for d in center_crop_datasets):
             rgb_tile = center_crop_to_size(rgb_tile, cropSize)
             dsm_tile = center_crop_to_size(dsm_tile, cropSize)
         

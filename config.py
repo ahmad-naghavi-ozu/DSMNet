@@ -11,7 +11,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 multi_gpu_enabled = True
 # Specify which GPUs to use for multi-GPU training (comma-separated)
 # For single GPU: "0", For multi-GPU: "0,1" or "0,1,2,3" etc.
-gpu_devices = "0,1"  # Change this to your available GPU indices
+gpu_devices = "2,3"  # Change this to your available GPU indices
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_devices
 # Set TensorFlow log level to a specific level
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INFO, 2 = filter out INFO & WARNINGS, 3 = only ERROR messages
@@ -20,7 +20,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023Amini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'Dublin'  # Change this to the desired dataset name
+dataset_name = 'Dublin_ndsm'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -31,7 +31,7 @@ shortcut_path = '../datasets/'  # Change this to the desired path
 # Large tile datasets: require random patch extraction
 large_tile_datasets = ['Vaihingen', 'DFC2018']
 # Regular size datasets: use standard folder structure (train/valid/test with rgb/dsm/sem/sar subfolders)
-regular_size_datasets = ['DFC2019_crp256', 'DFC2019_crp512', 'DFC2023', 'Vaihingen_crp256', 'DFC2018_crp256', 'Dublin']
+regular_size_datasets = ['DFC2019_crp256', 'DFC2019_crp512', 'DFC2023', 'Vaihingen_crp256', 'DFC2018_crp256', 'Dublin', 'Dublin_ndsm']
 
 # Datasets with SAR data available
 sar_datasets = ['DFC2023']
@@ -40,6 +40,9 @@ sar_datasets = ['DFC2023']
 # These datasets will not have semantic segmentation labels, thus the model will not be trained for that
 # They will only be trained for DSM and surface normals, e.g., Dublin
 no_sem_datasets = ['Dublin']  # Datasets without semantic segmentation labels
+
+# Datasets that require center cropping to match model input dimensions
+center_crop_datasets = ['Dublin']
 
 # Whether the input image tile is large, thus random patches are selected out of that, (DFC2018 and Vaihingen)
 # Or the input image is like a normal patch, thus as a whole could be fed to the model, (DFC2023)
@@ -187,14 +190,14 @@ canny_lt, canny_ht = 50, 150
 
 # Set flags for additive heads of MTL, viz semantic segmentation, surface normals, and edgemaps
 sem_flag, norm_flag, edge_flag = True, True, False
-sem_flag = False if dataset_name in no_sem_datasets else sem_flag  # Disable semantic segmentation for datasets without labels
+sem_flag = False if any(dataset_name.startswith(d) for d in no_sem_datasets) else sem_flag  # Disable semantic segmentation for datasets without labels
 
 # Set flag for MTL heads interconnection mode, either fully intertwined ('full') or just for the DSM head ('dsm')
 mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 
 # Set flag for applying denoising autoencoder during testing. 
 # Note: If set to True, this will affect train/valid error computations
-correction = False
+correction = True
 
 # Define label codes for semantic segmentation task, and
 # scaling factors (weights) for different types of loss functions in MTL
