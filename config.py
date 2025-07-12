@@ -11,7 +11,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 multi_gpu_enabled = True
 # Specify which GPUs to use for multi-GPU training (comma-separated)
 # For single GPU: "0", For multi-GPU: "0,1" or "0,1,2,3" etc.
-gpu_devices = "2,3"  # Change this to your available GPU indices
+gpu_devices = "0,2"  # Change this to your available GPU indices
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_devices
 # Set TensorFlow log level to a specific level
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INFO, 2 = filter out INFO & WARNINGS, 3 = only ERROR messages
@@ -20,7 +20,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023Amini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'Dublin_ndsm'  # Change this to the desired dataset name
+dataset_name = 'Contest'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -31,7 +31,8 @@ shortcut_path = '../datasets/'  # Change this to the desired path
 # Large tile datasets: require random patch extraction
 large_tile_datasets = ['Vaihingen', 'DFC2018']
 # Regular size datasets: use standard folder structure (train/valid/test with rgb/dsm/sem/sar subfolders)
-regular_size_datasets = ['DFC2019_crp256', 'DFC2019_crp512', 'DFC2023', 'Vaihingen_crp256', 'DFC2018_crp256', 'Dublin', 'Dublin_ndsm']
+regular_size_datasets = ['DFC2019_crp256', 'DFC2019_crp512', 'DFC2023', 'Vaihingen_crp256', 
+                         'DFC2018_crp256', 'Dublin', 'Dublin_ndsm', 'Contest']
 
 # Datasets with SAR data available
 sar_datasets = ['DFC2023']
@@ -61,6 +62,7 @@ dataset_configs = {
     'DFC2019_crp256': (256, 10),
     'DFC2019_crp512': (512, 2),
     'DFC2023': (512, 2),
+    'Contest': (512, 2),
     'Dublin': (480, 2),  # Updated to match model output dimensions (480 is divisible by 32)
 }
 
@@ -197,7 +199,7 @@ mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 
 # Set flag for applying denoising autoencoder during testing. 
 # Note: If set to True, this will affect train/valid error computations
-correction = True
+correction = False  # If True, apply DAE correction during testing
 
 # Define label codes for semantic segmentation task, and
 # scaling factors (weights) for different types of loss functions in MTL
@@ -221,6 +223,10 @@ elif dataset_name.startswith('DFC2019'):
 elif dataset_name.startswith('DFC2023'):
     label_codes = [0, 1]
     w1, w2, w3, w4 = (1e-3, 1.0, 1e-5, 1e-3)  # weights for: dsm, sem, norm, edge
+
+elif dataset_name.startswith('Contest'):
+    label_codes = [0, 1]
+    w1, w2, w3, w4 = (1e-5, 1e-6, 1e-10, 1e-3)  # weights for: dsm, sem, norm, edge
 
 elif dataset_name.startswith('Dublin'):
     # Dublin dataset has no semantic segmentation labels
