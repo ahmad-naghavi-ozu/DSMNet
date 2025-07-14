@@ -67,6 +67,9 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
     # Initialize the test error metrics
     total_delta1 = total_delta2 = total_delta3 = 0.0
     total_mse = total_mae = total_rmse = 0.0
+    total_rmse_building = total_rmse_matched = 0.0
+    total_high_rise_rmse = total_mid_rise_rmse = total_low_rise_rmse = 0.0
+    count_high_rise = count_mid_rise = count_low_rise = 0
     confusion_matrix = np.zeros((sem_k, sem_k))  # Initialize confusion matrix
     total_time = 0
 
@@ -182,7 +185,10 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
 
         # Calculate DSM metrics
         total_delta1, total_delta2, total_delta3, \
-        total_mse, total_mae, total_rmse, _, _ = compute_dsm_metrics(
+        total_mse, total_mae, total_rmse, \
+        total_rmse_building, total_rmse_matched, \
+        total_high_rise_rmse, total_mid_rise_rmse, total_low_rise_rmse, \
+        count_high_rise, count_mid_rise, count_low_rise, _, _ = compute_dsm_metrics(
             verbose=verbose,
             logger=logger,
             total_delta1=total_delta1,
@@ -191,8 +197,18 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
             total_mse=total_mse,
             total_mae=total_mae,
             total_rmse=total_rmse,
+            total_rmse_building=total_rmse_building,
+            total_rmse_matched=total_rmse_matched,
+            total_high_rise_rmse=total_high_rise_rmse,
+            total_mid_rise_rmse=total_mid_rise_rmse,
+            total_low_rise_rmse=total_low_rise_rmse,
+            count_high_rise=count_high_rise,
+            count_mid_rise=count_mid_rise,
+            count_low_rise=count_low_rise,
             dsm_tile=dsm_tile,
-            dsm_pred=dsm_pred
+            dsm_pred=dsm_pred,
+            gt_mask=gt_mask if 'gt_mask' in locals() else None,
+            pred_mask=pred_mask if 'pred_mask' in locals() else None
         )
 
         # Keep track of computation time
@@ -242,16 +258,29 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
     avg_delta2 = total_delta2 / tilesLen
     avg_delta3 = total_delta3 / tilesLen
     
+    # Calculate building-specific averages
+    avg_rmse_building = total_rmse_building / tilesLen
+    avg_rmse_matched = total_rmse_matched / tilesLen
+    avg_high_rise_rmse = total_high_rise_rmse / count_high_rise if count_high_rise > 0 else 0.0
+    avg_mid_rise_rmse = total_mid_rise_rmse / count_mid_rise if count_mid_rise > 0 else 0.0
+    avg_low_rise_rmse = total_low_rise_rmse / count_low_rise if count_low_rise > 0 else 0.0
+    
     if verbose:
         # Calculate means for all metrics
         dsm_metrics_str = (
             f"DSM Regression Metrics:\n"
-            f"    MSE:    {avg_mse:.6f}\n"
-            f"    MAE:    {avg_mae:.6f}\n"
-            f"    RMSE:   {avg_rmse:.6f}\n"
-            f"    Delta1: {avg_delta1:.6f}\n"
-            f"    Delta2: {avg_delta2:.6f}\n"
-            f"    Delta3: {avg_delta3:.6f}\n"
+            f"    MSE:                {avg_mse:.6f}\n"
+            f"    MAE:                {avg_mae:.6f}\n"
+            f"    RMSE:               {avg_rmse:.6f}\n"
+            f"    Delta1:             {avg_delta1:.6f}\n"
+            f"    Delta2:             {avg_delta2:.6f}\n"
+            f"    Delta3:             {avg_delta3:.6f}\n"
+            f"\nBuilding-Specific Height Metrics:\n"
+            f"    RMSE Building:      {avg_rmse_building:.6f}\n"
+            f"    RMSE Matched:       {avg_rmse_matched:.6f}\n"
+            f"    High-rise RMSE:     {avg_high_rise_rmse:.6f} (from {count_high_rise} tiles)\n"
+            f"    Mid-rise RMSE:      {avg_mid_rise_rmse:.6f} (from {count_mid_rise} tiles)\n"
+            f"    Low-rise RMSE:      {avg_low_rise_rmse:.6f} (from {count_low_rise} tiles)\n"
         )
 
         # Format segmentation metrics only if semantic segmentation is enabled
@@ -294,6 +323,13 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
         "delta1": avg_delta1,
         "delta2": avg_delta2,
         "delta3": avg_delta3,
+        
+        # Building-specific height metrics
+        "rmse_building": avg_rmse_building,
+        "rmse_matched": avg_rmse_matched,
+        "high_rise_rmse": avg_high_rise_rmse,
+        "mid_rise_rmse": avg_mid_rise_rmse,
+        "low_rise_rmse": avg_low_rise_rmse,
         
         # Segmentation metrics - class metrics first (following config.py organization)
         "iou_per_class": iou_per_class,

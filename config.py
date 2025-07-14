@@ -11,7 +11,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 multi_gpu_enabled = True
 # Specify which GPUs to use for multi-GPU training (comma-separated)
 # For single GPU: "0", For multi-GPU: "0,1" or "0,1,2,3" etc.
-gpu_devices = "0,2"  # Change this to your available GPU indices
+gpu_devices = "2"  # Change this to your available GPU indices
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_devices
 # Set TensorFlow log level to a specific level
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INFO, 2 = filter out INFO & WARNINGS, 3 = only ERROR messages
@@ -20,7 +20,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023Amini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'Contest'  # Change this to the desired dataset name
+dataset_name = 'DFC2023S'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -156,10 +156,13 @@ early_stop_delta = 1e-2  # Minimum change in monitored value to qualify as an im
 
 # Evaluation metric configuration
 # Define available metrics first, since other configs depend on it
-metric_names = ['mse', 'mae', 'rmse', 'delta1', 'delta2', 'delta3']
+metric_names = ['mse', 'mae', 'rmse', 'delta1', 'delta2', 'delta3', 
+                'rmse_building', 'rmse_matched', 
+                'high_rise_rmse', 'mid_rise_rmse', 'low_rise_rmse']
 
 # Categorize metrics into error metrics (lower is better) and accuracy metrics (higher is better)
-height_error_metrics = ['mse', 'mae', 'rmse']
+height_error_metrics = ['mse', 'mae', 'rmse', 'rmse_building', 'rmse_matched', 
+                        'high_rise_rmse', 'mid_rise_rmse', 'low_rise_rmse']
 height_accuracy_metrics = ['delta1', 'delta2', 'delta3']
 
 # Segmentation metrics separated by type
@@ -178,7 +181,7 @@ patience_counter = 0
 # Plot configuration for train/valid errors
 plot_train_error = False  # Flag to enable/disable calculating and plotting training errors
 # Example: Add 'miou' to see segmentation metrics
-plot_metrics = ['rmse', 'delta1', 'iou', 'miou']  # List of metrics to plot from metric_names + segmentation_accuracy_metrics
+plot_metrics = ['rmse', 'delta1', 'rmse_building', 'rmse_matched', 'miou']  # List of metrics to plot from metric_names + segmentation_accuracy_metrics
 
 # Set the regression loss mode, either MSE or Huber
 reg_loss = 'mse'  # 'mse' or 'huber'
@@ -189,6 +192,12 @@ huber_delta = 0.1  # Huber loss hyperparameter, delta
 roof_height_threshold = 50
 # Canny edge detection algorithm low and high thresholds for detecting potential edges for rooftops
 canny_lt, canny_ht = 50, 150
+
+# Building height classification thresholds for height-based metrics
+# These thresholds define building categories based on height in meters
+low_rise_max = 15    # Buildings with height < 15m are considered low-rise
+mid_rise_max = 40    # Buildings with height >= 15m and < 40m are considered mid-rise
+                     # Buildings with height >= 40m are considered high-rise
 
 # Set flags for additive heads of MTL, viz semantic segmentation, surface normals, and edgemaps
 sem_flag, norm_flag, edge_flag = True, True, False

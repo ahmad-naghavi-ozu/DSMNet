@@ -156,14 +156,25 @@ def compute_dsm_metrics(
     total_mse,
     total_mae,
     total_rmse,
+    total_rmse_building,
+    total_rmse_matched,
+    total_high_rise_rmse,
+    total_mid_rise_rmse,
+    total_low_rise_rmse,
+    count_high_rise,
+    count_mid_rise,
+    count_low_rise,
     dsm_tile,
-    dsm_pred
+    dsm_pred,
+    gt_mask=None,
+    pred_mask=None
 ):
     """
     Compute Digital Surface Model (DSM) evaluation metrics for a single tile.
     This function calculates various error metrics between predicted and ground truth DSM tiles,
-    including MSE, MAE, RMSE and delta accuracy metrics. It handles invalid values and updates
-    running totals for batch processing.
+    including MSE, MAE, RMSE, delta accuracy metrics, and building-specific height metrics.
+    It handles invalid values and updates running totals for batch processing.
+    
     Args:
         verbose (bool): If True, logs detailed metrics for each tile
         logger: Logger object for output messages
@@ -173,8 +184,19 @@ def compute_dsm_metrics(
         total_mse (float): Running total for Mean Squared Error
         total_mae (float): Running total for Mean Absolute Error 
         total_rmse (float): Running total for Root Mean Squared Error
+        total_rmse_building (float): Running total for RMSE on building pixels only
+        total_rmse_matched (float): Running total for RMSE on matched building pixels
+        total_high_rise_rmse (float): Running total for RMSE on high-rise buildings
+        total_mid_rise_rmse (float): Running total for RMSE on mid-rise buildings
+        total_low_rise_rmse (float): Running total for RMSE on low-rise buildings
+        count_high_rise (int): Count of tiles with high-rise buildings
+        count_mid_rise (int): Count of tiles with mid-rise buildings
+        count_low_rise (int): Count of tiles with low-rise buildings
         dsm_tile (numpy.ndarray): Ground truth DSM tile
         dsm_pred (numpy.ndarray): Predicted DSM tile
+        gt_mask (numpy.ndarray, optional): Ground truth segmentation mask (1 for buildings)
+        pred_mask (numpy.ndarray, optional): Predicted segmentation mask (1 for buildings)
+        
     Returns:
         tuple:
             - total_delta1 (float): Updated running total for delta1
@@ -183,12 +205,23 @@ def compute_dsm_metrics(
             - total_mse (float): Updated running total for MSE
             - total_mae (float): Updated running total for MAE
             - total_rmse (float): Updated running total for RMSE
+            - total_rmse_building (float): Updated running total for building RMSE
+            - total_rmse_matched (float): Updated running total for matched building RMSE
+            - total_high_rise_rmse (float): Updated running total for high-rise RMSE
+            - total_mid_rise_rmse (float): Updated running total for mid-rise RMSE
+            - total_low_rise_rmse (float): Updated running total for low-rise RMSE
+            - count_high_rise (int): Updated count of tiles with high-rise buildings
+            - count_mid_rise (int): Updated count of tiles with mid-rise buildings
+            - count_low_rise (int): Updated count of tiles with low-rise buildings
             - dsm_tile (numpy.ndarray): Filtered ground truth DSM
             - dsm_pred (numpy.ndarray): Filtered predicted DSM
+            
     Notes:
         - Delta metrics measure accuracy within thresholds of 1.25, 1.25^2, and 1.25^3
         - Zero or negative values are replaced with small positive values (1e-5)
         - Invalid pixels are filtered out before computation
+        - Building-specific metrics require segmentation masks where 1 = building, 0 = background
+        - Height categories: low-rise (<15m), mid-rise (15-40m), high-rise (>=40m)
     """
     # 1. Ensure both arrays have the same shape
     assert dsm_tile.shape == dsm_pred.shape, (
@@ -236,6 +269,9 @@ def compute_dsm_metrics(
         return (
             total_delta1, total_delta2, total_delta3,
             total_mse, total_mae, total_rmse,
+            total_rmse_building, total_rmse_matched,
+            total_high_rise_rmse, total_mid_rise_rmse, total_low_rise_rmse,
+            count_high_rise, count_mid_rise, count_low_rise,
             dsm_tile_, dsm_pred_
         )
  
@@ -252,7 +288,69 @@ def compute_dsm_metrics(
     tile_delta2 = np.mean(max_ratio < 1.25 ** 2)
     tile_delta3 = np.mean(max_ratio < 1.25 ** 3)
 
-    # 8. Log tile-level metrics if verbose
+    # 8. Compute building-specific height metrics
+    tile_rmse_building = 0.0
+    tile_rmse_matched = 0.0
+    tile_high_rise_rmse = None
+    tile_mid_rise_rmse = None
+    tile_low_rise_rmse = None
+    
+    if gt_mask is not None and pred_mask is not None:
+        # Ensure masks have the same shape as DSM tiles
+        if gt_mask.shape != dsm_tile.shape[:2] or pred_mask.shape != dsm_pred.shape[:2]:
+            if verbose:
+                logger.warning(f"Mask shape mismatch: gt_mask {gt_mask.shape}, pred_mask {pred_mask.shape}, DSM shape {dsm_tile.shape[:2]}")
+        else:
+            # Building pixels are where mask == 1 (corrected for DSMNet convention)
+            building_mask_gt = (gt_mask == 1)
+            building_mask_pred = (pred_mask == 1)
+            matched_building_mask = building_mask_gt & building_mask_pred
+            
+            # Apply valid pixel filtering to masks as well
+            building_mask_gt_filtered = building_mask_gt[valid_mask]
+            building_mask_pred_filtered = building_mask_pred[valid_mask]
+            matched_building_mask_filtered = matched_building_mask[valid_mask]
+            
+            # Calculate RMSE for building pixels only (based on ground truth mask)
+            if np.sum(building_mask_gt_filtered) > 0:
+                dsm_pred_buildings = dsm_pred_[building_mask_gt_filtered]
+                dsm_tile_buildings = dsm_tile_[building_mask_gt_filtered]
+                tile_rmse_building = np.sqrt(np.mean((dsm_pred_buildings - dsm_tile_buildings) ** 2))
+            
+            # Calculate RMSE for matched building pixels (both predicted and GT are buildings)
+            if np.sum(matched_building_mask_filtered) > 0:
+                dsm_pred_matched = dsm_pred_[matched_building_mask_filtered]
+                dsm_tile_matched = dsm_tile_[matched_building_mask_filtered]
+                tile_rmse_matched = np.sqrt(np.mean((dsm_pred_matched - dsm_tile_matched) ** 2))
+            
+            # Calculate height-category-specific RMSE
+            # Apply height-based filtering to the filtered valid pixels
+            low_rise_mask = (dsm_tile_ >= 1) & (dsm_tile_ < low_rise_max)
+            mid_rise_mask = (dsm_tile_ >= low_rise_max) & (dsm_tile_ < mid_rise_max)
+            high_rise_mask = dsm_tile_ >= mid_rise_max
+            
+            # Low-rise buildings RMSE
+            if np.sum(low_rise_mask) > 0:
+                low_rise_pred = dsm_pred_[low_rise_mask]
+                low_rise_gt = dsm_tile_[low_rise_mask]
+                tile_low_rise_rmse = np.sqrt(np.mean((low_rise_pred - low_rise_gt) ** 2))
+                count_low_rise += 1
+            
+            # Mid-rise buildings RMSE
+            if np.sum(mid_rise_mask) > 0:
+                mid_rise_pred = dsm_pred_[mid_rise_mask]
+                mid_rise_gt = dsm_tile_[mid_rise_mask]
+                tile_mid_rise_rmse = np.sqrt(np.mean((mid_rise_pred - mid_rise_gt) ** 2))
+                count_mid_rise += 1
+            
+            # High-rise buildings RMSE
+            if np.sum(high_rise_mask) > 0:
+                high_rise_pred = dsm_pred_[high_rise_mask]
+                high_rise_gt = dsm_tile_[high_rise_mask]
+                tile_high_rise_rmse = np.sqrt(np.mean((high_rise_pred - high_rise_gt) ** 2))
+                count_high_rise += 1
+
+    # 9. Log tile-level metrics if verbose
     if verbose:
         logger.info(f"Tile MSE   : {tile_mse:.4f}")
         logger.info(f"Tile MAE   : {tile_mae:.4f}")
@@ -260,8 +358,17 @@ def compute_dsm_metrics(
         logger.info(f"Tile Delta1: {tile_delta1:.4f}")
         logger.info(f"Tile Delta2: {tile_delta2:.4f}")
         logger.info(f"Tile Delta3: {tile_delta3:.4f}")
+        if gt_mask is not None and pred_mask is not None:
+            logger.info(f"Tile RMSE Building: {tile_rmse_building:.4f}")
+            logger.info(f"Tile RMSE Matched : {tile_rmse_matched:.4f}")
+            if tile_low_rise_rmse is not None:
+                logger.info(f"Tile Low-rise RMSE: {tile_low_rise_rmse:.4f}")
+            if tile_mid_rise_rmse is not None:
+                logger.info(f"Tile Mid-rise RMSE: {tile_mid_rise_rmse:.4f}")
+            if tile_high_rise_rmse is not None:
+                logger.info(f"Tile High-rise RMSE: {tile_high_rise_rmse:.4f}")
 
-    # 9. Update running totals
+    # 10. Update running totals
     total_mse  += tile_mse
     total_mae  += tile_mae
     total_rmse += tile_rmse
@@ -269,8 +376,19 @@ def compute_dsm_metrics(
     total_delta1 += tile_delta1
     total_delta2 += tile_delta2
     total_delta3 += tile_delta3
+    
+    # Update building-specific totals
+    total_rmse_building += tile_rmse_building
+    total_rmse_matched += tile_rmse_matched
+    
+    if tile_high_rise_rmse is not None:
+        total_high_rise_rmse += tile_high_rise_rmse
+    if tile_mid_rise_rmse is not None:
+        total_mid_rise_rmse += tile_mid_rise_rmse
+    if tile_low_rise_rmse is not None:
+        total_low_rise_rmse += tile_low_rise_rmse
 
-    # 10. Return updated totals + filtered arrays
+    # 11. Return updated totals + filtered arrays
     return (
         total_delta1,
         total_delta2,
@@ -278,6 +396,14 @@ def compute_dsm_metrics(
         total_mse,
         total_mae,
         total_rmse,
+        total_rmse_building,
+        total_rmse_matched,
+        total_high_rise_rmse,
+        total_mid_rise_rmse,
+        total_low_rise_rmse,
+        count_high_rise,
+        count_mid_rise,
+        count_low_rise,
         dsm_tile_,
         dsm_pred_
     )
@@ -336,6 +462,14 @@ def compute_validation_metrics(
         train_avg_delta1 = train_metrics_data['delta1']
         train_avg_delta2 = train_metrics_data['delta2']
         train_avg_delta3 = train_metrics_data['delta3']
+        
+        # Extract building-specific height metrics
+        train_avg_rmse_building = train_metrics_data['rmse_building']
+        train_avg_rmse_matched = train_metrics_data['rmse_matched']
+        train_avg_high_rise_rmse = train_metrics_data['high_rise_rmse']
+        train_avg_mid_rise_rmse = train_metrics_data['mid_rise_rmse']
+        train_avg_low_rise_rmse = train_metrics_data['low_rise_rmse']
+        
         train_time = train_metrics_data['time']
         train_count = train_metrics_data['count']
         
@@ -351,6 +485,12 @@ def compute_validation_metrics(
             f"    Delta1: {train_avg_delta1:.6f}\n"
             f"    Delta2: {train_avg_delta2:.6f}\n"
             f"    Delta3: {train_avg_delta3:.6f}\n"
+            f"\nBuilding-Specific Height Metrics:\n"
+            f"    RMSE Building:  {train_avg_rmse_building:.6f}\n"
+            f"    RMSE Matched:   {train_avg_rmse_matched:.6f}\n"
+            f"    High-rise RMSE: {train_avg_high_rise_rmse:.6f}\n"
+            f"    Mid-rise RMSE:  {train_avg_mid_rise_rmse:.6f}\n"
+            f"    Low-rise RMSE:  {train_avg_low_rise_rmse:.6f}\n"
         )
         
         # Add segmentation metrics
@@ -377,6 +517,14 @@ def compute_validation_metrics(
     valid_avg_delta1 = valid_metrics_data['delta1']
     valid_avg_delta2 = valid_metrics_data['delta2']
     valid_avg_delta3 = valid_metrics_data['delta3']
+    
+    # Extract building-specific height metrics
+    valid_avg_rmse_building = valid_metrics_data['rmse_building']
+    valid_avg_rmse_matched = valid_metrics_data['rmse_matched']
+    valid_avg_high_rise_rmse = valid_metrics_data['high_rise_rmse']
+    valid_avg_mid_rise_rmse = valid_metrics_data['mid_rise_rmse']
+    valid_avg_low_rise_rmse = valid_metrics_data['low_rise_rmse']
+    
     valid_time = valid_metrics_data['time']
     valid_count = valid_metrics_data['count']
     
@@ -392,6 +540,12 @@ def compute_validation_metrics(
         f"    Delta1: {valid_avg_delta1:.6f}\n"
         f"    Delta2: {valid_avg_delta2:.6f}\n"
         f"    Delta3: {valid_avg_delta3:.6f}\n"
+        f"\nBuilding-Specific Height Metrics:\n"
+        f"    RMSE Building:  {valid_avg_rmse_building:.6f}\n"
+        f"    RMSE Matched:   {valid_avg_rmse_matched:.6f}\n"
+        f"    High-rise RMSE: {valid_avg_high_rise_rmse:.6f}\n"
+        f"    Mid-rise RMSE:  {valid_avg_mid_rise_rmse:.6f}\n"
+        f"    Low-rise RMSE:  {valid_avg_low_rise_rmse:.6f}\n"
     )
     
     # Add segmentation metrics
@@ -419,6 +573,13 @@ def compute_validation_metrics(
         train_metrics['delta2'].append(train_avg_delta2)
         train_metrics['delta3'].append(train_avg_delta3)
         
+        # Update building-specific height metrics
+        train_metrics['rmse_building'] = train_metrics.get('rmse_building', []) + [train_avg_rmse_building]
+        train_metrics['rmse_matched'] = train_metrics.get('rmse_matched', []) + [train_avg_rmse_matched]
+        train_metrics['high_rise_rmse'] = train_metrics.get('high_rise_rmse', []) + [train_avg_high_rise_rmse]
+        train_metrics['mid_rise_rmse'] = train_metrics.get('mid_rise_rmse', []) + [train_avg_mid_rise_rmse]
+        train_metrics['low_rise_rmse'] = train_metrics.get('low_rise_rmse', []) + [train_avg_low_rise_rmse]
+        
         # Update segmentation metrics
         train_metrics['miou'] = train_metrics.get('miou', []) + [train_miou]
         
@@ -434,6 +595,13 @@ def compute_validation_metrics(
     valid_metrics['delta1'].append(valid_avg_delta1)
     valid_metrics['delta2'].append(valid_avg_delta2)
     valid_metrics['delta3'].append(valid_avg_delta3)
+    
+    # Update building-specific height metrics
+    valid_metrics['rmse_building'] = valid_metrics.get('rmse_building', []) + [valid_avg_rmse_building]
+    valid_metrics['rmse_matched'] = valid_metrics.get('rmse_matched', []) + [valid_avg_rmse_matched]
+    valid_metrics['high_rise_rmse'] = valid_metrics.get('high_rise_rmse', []) + [valid_avg_high_rise_rmse]
+    valid_metrics['mid_rise_rmse'] = valid_metrics.get('mid_rise_rmse', []) + [valid_avg_mid_rise_rmse]
+    valid_metrics['low_rise_rmse'] = valid_metrics.get('low_rise_rmse', []) + [valid_avg_low_rise_rmse]
     
     # Update segmentation metrics
     valid_metrics['miou'] = valid_metrics.get('miou', []) + [valid_miou]
