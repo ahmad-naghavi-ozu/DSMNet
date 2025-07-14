@@ -209,7 +209,7 @@ mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 # Set flag for applying denoising autoencoder during testing. 
 # Note: If set to True, this will affect train/valid error computations
 # This is because the DAE will be used to denoise the DSM before calculating the errors.
-correction = False
+correction = True
 
 # Define label codes for semantic segmentation task, and
 # scaling factors (weights) for different types of loss functions in MTL
