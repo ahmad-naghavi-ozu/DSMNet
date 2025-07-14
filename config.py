@@ -18,9 +18,9 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 
 # Define the dataset to be used for training and testing
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
-# and DFC2023 derivatives as follows:
+# DFC2019_crp512_bin, and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023Amini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'DFC2023S'  # Change this to the desired dataset name
+dataset_name = 'DFC2019_crp256_bin'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -209,7 +209,7 @@ mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 # Set flag for applying denoising autoencoder during testing. 
 # Note: If set to True, this will affect train/valid error computations
 # This is because the DAE will be used to denoise the DSM before calculating the errors.
-correction = True
+correction = False
 
 # Define label codes for semantic segmentation task, and
 # scaling factors (weights) for different types of loss functions in MTL
