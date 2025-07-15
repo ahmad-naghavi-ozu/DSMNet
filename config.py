@@ -20,7 +20,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # DFC2019_crp512_bin, and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023Amini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'DFC2019_crp256_bin'  # Change this to the desired dataset name
+dataset_name = 'Huawei_Contest'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -32,7 +32,7 @@ shortcut_path = '../datasets/'  # Change this to the desired path
 large_tile_datasets = ['Vaihingen', 'DFC2018']
 # Regular size datasets: use standard folder structure (train/valid/test with rgb/dsm/sem/sar subfolders)
 regular_size_datasets = ['DFC2019_crp256', 'DFC2019_crp512', 'DFC2023', 'Vaihingen_crp256', 
-                         'DFC2018_crp256', 'Dublin', 'Dublin_ndsm', 'Contest']
+                         'DFC2018_crp256', 'Dublin', 'Dublin_ndsm', 'Contest', 'Huawei_Contest']
 
 # Datasets with SAR data available
 sar_datasets = ['DFC2023']
@@ -63,6 +63,7 @@ dataset_configs = {
     'DFC2019_crp512': (512, 2),
     'DFC2023': (512, 2),
     'Contest': (512, 2),
+    'Huawei_Contest': (512, 2),  # Huawei Contest dataset
     'Dublin': (480, 2),  # Updated to match model output dimensions (480 is divisible by 32)
 }
 
@@ -234,7 +235,7 @@ elif dataset_name.startswith('DFC2023'):
     label_codes = [0, 1]
     w1, w2, w3, w4 = (1e-3, 1.0, 1e-5, 1e-3)  # weights for: dsm, sem, norm, edge
 
-elif dataset_name.startswith('Contest'):
+elif dataset_name.startswith(('Contest', 'Huawei_Contest')):
     label_codes = [0, 1]
     w1, w2, w3, w4 = (1e-5, 1e-6, 1e-10, 1e-3)  # weights for: dsm, sem, norm, edge
 
