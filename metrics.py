@@ -218,7 +218,7 @@ def compute_dsm_metrics(
             
     Notes:
         - Delta metrics measure accuracy within thresholds of 1.25, 1.25^2, and 1.25^3
-        - Zero or negative values are replaced with small positive values (1e-5)
+        - Zero or negative values are replaced with small positive values (e.g., 1e-5)
         - Invalid pixels are filtered out before computation
         - Building-specific metrics require segmentation masks where 1 = building, 0 = background
         - Height categories: low-rise (<15m), mid-rise (15-40m), high-rise (>=40m)
@@ -252,9 +252,10 @@ def compute_dsm_metrics(
         logger.info(f"dsm_tile - mean of negative pixels : {avg_neg_tile}")
 
     # Replace zero or negative values to avoid division by zero or invalid ratios
-    # dsm_pred_[dsm_pred_ == 0], dsm_pred_[dsm_pred_ < 0] = 1e-5, 999
-    dsm_pred_[dsm_pred_ <= 0] = 1e-5
-    dsm_tile_[dsm_tile_ <= 0] = 1e-5
+    eps = 1e-5  # Small value to replace zero or negative values
+    # dsm_pred_[dsm_pred_ == 0], dsm_pred_[dsm_pred_ < 0] = eps, 999
+    dsm_pred_[dsm_pred_ <= 0] = eps
+    dsm_tile_[dsm_tile_ <= 0] = eps
 
     # 4. Create a valid mask (both arrays should have strictly positive values)
     valid_mask = (dsm_tile_ > 0) & (dsm_pred_ > 0)
