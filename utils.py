@@ -180,7 +180,7 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
 
             if mtl_flag:
-                sem_tile = np.array(Image.open(train_sem[idx]))
+                sem_tile = np.array(Image.open(train_sem[idx])).astype(np.uint8)
                 if norm_flag:
                     norm_tile = genNormals(dsm_tile); 
                     norm_tile = norm_tile if normalize_flag else (norm_tile * 255).astype(np.uint8)
@@ -199,7 +199,7 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
 
             if mtl_flag:
-                sem_tile = np.array(Image.open(train_sem[idx]))
+                sem_tile = np.array(Image.open(train_sem[idx])).astype(np.uint8)
                 if norm_flag:
                     norm_tile = genNormals(dsm_tile); 
                     norm_tile = norm_tile if normalize_flag else (norm_tile * 255).astype(np.uint8)
@@ -255,7 +255,7 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             if mtl_flag:
                 # Only load semantic labels if sem_flag is enabled
                 if sem_flag:
-                    sem = np.array(Image.open(train_sem[sample_idx]))
+                    sem = np.array(Image.open(train_sem[sample_idx])).astype(np.uint8)
                 
                 if norm_flag:
                     norm = genNormals(dsm); 
@@ -323,7 +323,7 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
             rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
             dsm_tile = np.array(Image.open(test_dsm[tile])).astype(np.float32); 
             dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
-            sem_tile = np.array(Image.open(test_sem[tile]))
+            sem_tile = np.array(Image.open(test_sem[tile])).astype(np.uint8)
 
         elif dataset_name == 'DFC2018':
             rgb_tile = np.array(Image.open(test_rgb[tile])); 
@@ -334,7 +334,7 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
             dem_tile = correctTile(dem_tile)
             dsm_tile = dsm_tile - dem_tile  # Caution! nDSM here could still contain negative values
             dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
-            sem_tile = np.array(Image.open(test_sem[tile]))
+            sem_tile = np.array(Image.open(test_sem[tile])).astype(np.uint8)
 
     # Handle regular-sized datasets with unified approach
     else:
@@ -357,7 +357,7 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
         
         # Handle semantic labels - only load if the dataset has them
         if not any(dataset_name.startswith(d) for d in no_sem_datasets):
-            sem_tile = np.array(Image.open(test_sem[tile]))
+            sem_tile = np.array(Image.open(test_sem[tile])).astype(np.uint8)
         else:
             # Return None for datasets without semantic labels
             sem_tile = None
@@ -504,7 +504,6 @@ def normalize_array(arr, min, max):
     Returns:
     - numpy.ndarray: The normalized array.
     """
-    # norm_arr = cv2.normalize(arr, None, min, max, cv2.NORM_MINMAX).astype(np.uint8)
     norm_arr = cv2.normalize(arr, None, min, max, cv2.NORM_MINMAX).astype('float32')
     norm_arr = np.clip(norm_arr, min, max)
 
