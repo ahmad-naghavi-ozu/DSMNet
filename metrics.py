@@ -235,46 +235,17 @@ def compute_dsm_metrics(
 
     # 3. Handle invalid or zero values: the original approach based on the contest rules
     #    - Very small positive for zeros and negative in pred
-    #    - Large sentinel (999) for negative pred -> Not used in this version!
     #    - Very small positive for non-positive ground truth
-
-    # Calculate the average of zero and negative pixels for dsm_pred and dsm_tile
-    zero_pixel_ratio_pred = len(dsm_pred_[dsm_pred_ == 0]) / dsm_pred_.size
-    avg_neg_pred = np.mean(dsm_pred_[dsm_pred_ < 0])
-    zero_pixel_ratio_tile = len(dsm_tile_[dsm_tile_ == 0]) / dsm_tile_.size
-    avg_neg_tile = np.mean(dsm_tile_[dsm_tile_ < 0])
-    
-    # Log the ratios if verbose
-    if verbose:
-        logger.info(f"dsm_pred - ratio of zero pixels    : {zero_pixel_ratio_pred}")
-        logger.info(f"dsm_pred - mean of negative pixels : {avg_neg_pred}")
-        logger.info(f"dsm_tile - ratio of zero pixels    : {zero_pixel_ratio_tile}")
-        logger.info(f"dsm_tile - mean of negative pixels : {avg_neg_tile}")
 
     # Replace zero or negative values to avoid division by zero or invalid ratios
     eps = 1e-5  # Small value to replace zero or negative values
-    # dsm_pred_[dsm_pred_ == 0], dsm_pred_[dsm_pred_ < 0] = eps, 999
     dsm_pred_[dsm_pred_ <= 0] = eps
     dsm_tile_[dsm_tile_ <= 0] = eps
 
-    # 4. Create a valid mask (both arrays should have strictly positive values)
-    valid_mask = (dsm_tile_ > 0) & (dsm_pred_ > 0)
-
-    dsm_tile_ = dsm_tile_[valid_mask]
-    dsm_pred_ = dsm_pred_[valid_mask]
-
-    # 5. Check if there are any valid pixels left
-    if len(dsm_tile_) == 0:
-        if verbose:
-            logger.warning("No valid pixels found in this tile!")
-        return (
-            total_delta1, total_delta2, total_delta3,
-            total_mse, total_mae, total_rmse,
-            total_rmse_building, total_rmse_matched,
-            total_high_rise_rmse, total_mid_rise_rmse, total_low_rise_rmse,
-            count_high_rise, count_mid_rise, count_low_rise,
-            dsm_tile_, dsm_pred_
-        )
+    # After replacement, all pixels are positive - no need for valid_mask filtering
+    # Flatten arrays for computation
+    dsm_tile_ = dsm_tile_.flatten()
+    dsm_pred_ = dsm_pred_.flatten()
  
     # 6. Compute error metrics: MSE, MAE, RMSE
     abs_diff = np.abs(dsm_pred_ - dsm_tile_)
@@ -303,25 +274,20 @@ def compute_dsm_metrics(
                 logger.warning(f"Mask shape mismatch: gt_mask {gt_mask.shape}, pred_mask {pred_mask.shape}, DSM shape {dsm_tile.shape[:2]}")
         else:
             # Building pixels are where mask == 1 (corrected for DSMNet convention)
-            building_mask_gt = (gt_mask == 1)
-            building_mask_pred = (pred_mask == 1)
+            building_mask_gt = (gt_mask == 1).flatten()
+            building_mask_pred = (pred_mask == 1).flatten()
             matched_building_mask = building_mask_gt & building_mask_pred
             
-            # Apply valid pixel filtering to masks as well
-            building_mask_gt_filtered = building_mask_gt[valid_mask]
-            building_mask_pred_filtered = building_mask_pred[valid_mask]
-            matched_building_mask_filtered = matched_building_mask[valid_mask]
-            
             # Calculate RMSE for building pixels only (based on ground truth mask)
-            if np.sum(building_mask_gt_filtered) > 0:
-                dsm_pred_buildings = dsm_pred_[building_mask_gt_filtered]
-                dsm_tile_buildings = dsm_tile_[building_mask_gt_filtered]
+            if np.sum(building_mask_gt) > 0:
+                dsm_pred_buildings = dsm_pred_[building_mask_gt]
+                dsm_tile_buildings = dsm_tile_[building_mask_gt]
                 tile_rmse_building = np.sqrt(np.mean((dsm_pred_buildings - dsm_tile_buildings) ** 2))
             
             # Calculate RMSE for matched building pixels (both predicted and GT are buildings)
-            if np.sum(matched_building_mask_filtered) > 0:
-                dsm_pred_matched = dsm_pred_[matched_building_mask_filtered]
-                dsm_tile_matched = dsm_tile_[matched_building_mask_filtered]
+            if np.sum(matched_building_mask) > 0:
+                dsm_pred_matched = dsm_pred_[matched_building_mask]
+                dsm_tile_matched = dsm_tile_[matched_building_mask]
                 tile_rmse_matched = np.sqrt(np.mean((dsm_pred_matched - dsm_tile_matched) ** 2))
             
             # Calculate height-category-specific RMSE
