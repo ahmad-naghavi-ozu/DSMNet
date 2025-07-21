@@ -94,11 +94,11 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
             coordinates.append([y1, y2, x1, x2])
             rgb_data.append(rgb_tile[y1:y2, x1:x2, :])
 
-        # Initialize the DSM and SEM prediction tensors
-        gaussian = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1]])
-        dsm_pred = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1]])
+        # Initialize the DSM and SEM prediction tensors with proper data types
+        gaussian = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1]], dtype=np.float32)
+        dsm_pred = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1]], dtype=np.float32)
         if sem_flag:
-            sem_pred = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1], sem_k])
+            sem_pred = np.zeros([rgb_tile.shape[0], rgb_tile.shape[1], sem_k], dtype=np.float32)
         else:
             sem_pred = None
 
@@ -217,8 +217,9 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
         if verbose: logger.info("Tile time  : " + str(tile_time))
         
         if save_test:            
-            # Save the predicted DSM 
-            dsm_pred = Image.fromarray(dsm_pred)
+            # Save the predicted DSM with same data type as ground truth (float32)
+            dsm_pred_save = dsm_pred.astype(np.float32)
+            dsm_pred_img = Image.fromarray(dsm_pred_save)
             subfolder = (
                 f"dsm_"
                 f"{1 if sem_flag else 0}"
@@ -230,11 +231,13 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
             if not os.path.exists(dsm_output_dir):
                 os.makedirs(dsm_output_dir)
             dsm_file_path = os.path.join(dsm_output_dir, filename + '.tif')
-            dsm_pred.save(dsm_file_path)
+            dsm_pred_img.save(dsm_file_path)
             
             # Save the predicted SEM with SAR indicator only if semantic segmentation is enabled
             if sem_flag and sem_pred is not None:
-                sem_pred_img = Image.fromarray(sem_pred)
+                # Ensure sem_pred has the same data type as ground truth semantic labels
+                sem_pred_save = sem_pred.astype(np.uint8)
+                sem_pred_img = Image.fromarray(sem_pred_save)
                 sem_output_dir = f"./output/{dataset_name}/{sar_indicator}/sem/"
                 if not os.path.exists(sem_output_dir):
                     os.makedirs(sem_output_dir)
