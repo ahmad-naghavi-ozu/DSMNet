@@ -84,26 +84,52 @@ def collect_tilenames(mode):
         if any(dataset_name.startswith(d) for d in sar_datasets):
             subfolders.append('sar')
         
-        for subfolder in subfolders:
-            folder_path = base_path + subfolder + '/'
-            if os.path.exists(folder_path):
-                for filename in os.listdir(folder_path):
-                    if filename.endswith(('.tif', '.tiff', '.TIF', '.TIFF', 
-                                        '.jpg', '.jpeg', '.JPG', '.JPEG',
-                                        '.png', '.PNG', '.bmp', '.BMP',
-                                        '.jp2', '.JP2', '.gif', '.GIF',
-                                        '.webp', '.WEBP', '.pbm', '.PBM',
-                                        '.pgm', '.PGM', '.ppm', '.PPM',
-                                        '.tga', '.TGA', '.exr', '.EXR')):
-                        filepath = folder_path + filename
-                        if subfolder == 'rgb':
-                            all_rgb.append(filepath)
-                        elif subfolder == 'sar':
-                            all_sar.append(filepath)
-                        elif subfolder == 'dsm':
-                            all_dsm.append(filepath)
-                        elif subfolder == 'sem':
-                            all_sem.append(filepath)
+        # Collect all base filenames from RGB folder first to ensure alignment
+        rgb_folder = base_path + 'rgb/'
+        if os.path.exists(rgb_folder):
+            # Get all valid image files from RGB folder and sort them
+            rgb_files = [f for f in os.listdir(rgb_folder) 
+                        if f.endswith(('.tif', '.tiff', '.TIF', '.TIFF', 
+                                     '.jpg', '.jpeg', '.JPG', '.JPEG',
+                                     '.png', '.PNG', '.bmp', '.BMP',
+                                     '.jp2', '.JP2', '.gif', '.GIF',
+                                     '.webp', '.WEBP', '.pbm', '.PBM',
+                                     '.pgm', '.PGM', '.ppm', '.PPM',
+                                     '.tga', '.TGA', '.exr', '.EXR'))]
+            rgb_files.sort()  # Sort to ensure consistent order
+            
+            # Process each RGB file and find corresponding files in other modalities
+            for rgb_file in rgb_files:
+                # Extract base filename (without extension)
+                base_filename = '.'.join(rgb_file.split('.')[:-1])
+                
+                # Add RGB file
+                all_rgb.append(rgb_folder + rgb_file)
+                
+                # Find corresponding files in other modalities
+                for subfolder in ['sar', 'dsm', 'sem']:
+                    if subfolder in subfolders:
+                        folder_path = base_path + subfolder + '/'
+                        if os.path.exists(folder_path):
+                            # Look for matching file with any supported extension
+                            matching_file = None
+                            for ext in ['.tiff', '.tif', '.TIF', '.TIFF',
+                                       '.png', '.PNG', '.jpg', '.jpeg', 
+                                       '.JPG', '.JPEG', '.bmp', '.BMP']:
+                                candidate = folder_path + base_filename + ext
+                                if os.path.exists(candidate):
+                                    matching_file = candidate
+                                    break
+                            
+                            if matching_file:
+                                if subfolder == 'sar':
+                                    all_sar.append(matching_file)
+                                elif subfolder == 'dsm':
+                                    all_dsm.append(matching_file)
+                                elif subfolder == 'sem':
+                                    all_sem.append(matching_file)
+                            else:
+                                print(f"Warning: No matching {subfolder} file found for {base_filename}")
         
     samples_no = len(all_rgb)
     return all_rgb, all_sar, all_dsm, all_sem, samples_no
