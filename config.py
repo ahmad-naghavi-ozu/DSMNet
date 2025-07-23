@@ -22,7 +22,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # DFC2019_crp512_bin, and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023Amini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'DFC2019_crp256_bin'  # Change this to the desired dataset name
+dataset_name = 'DFC2019_crp512_bin'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -121,12 +121,12 @@ dae_training_samples = 10000
 dae_min_loss = float('inf')  # Minimum loss (DSM noise) threshold to save the DAE network weights as checkpoints
 
 # MTL saved weights preloading mode. If True, then all MTL model will be initialized with saved weights before training
-mtl_preload = True
+mtl_preload = False
 # MTL backbone frozen mode. If True, then the MTL backbone weights will not get updated during training to save time
 mtl_bb_freeze = False
 
 # DAE saved weights preloading mode. If True, then all DAE model will be initialized with saved weights before training
-dae_preload = True
+dae_preload = False
 
 # Define the status and the path to save checkpoints for MTL and Unet
 # Only add SAR mode indicator for DFC2023 datasets
