@@ -153,4 +153,4 @@ You may find the implementation fairly documented as for every parameter in the 
 
 - The `nets.py` file contains the architecture of MTL and DAE models, and `utils.py` file also provides utility functions with enough documentation that you may find them informative.
 
-Finally, after setting the required parameters inside the `config.py` file, to train the MTL and DAE models, you may just run the `train_mtl.py` and `train_dae.py` files respectively. To test the trained models, you may run the `test_dsm.py` file, considering the `correction` parameter accordingly as stipulated earlier.
+Finally, after setting the required parameters inside the `config.py` file, to train the MTL and DAE models, you may just run the `train_mtl.py` and `train_dae.py` files respectively. To test the trained models, you may run the `test.py` file, considering the `correction` parameter accordingly as stipulated earlier.

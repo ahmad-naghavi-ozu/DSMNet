@@ -26,7 +26,7 @@ sleep 30
 
 echo -e "\nStarting MTL testing..."
 sed -i 's/correction = .*/correction = False/' config.py
-python test_dsm.py
+python test.py
 if [ $? -ne 0 ]; then
     echo "Testing failed"
     exit 1
@@ -48,7 +48,7 @@ sleep 30
 
 echo -e "\nStarting DAE testing..."
 sed -i 's/correction = .*/correction = True/' config.py
-python test_dsm.py
+python test.py
 if [ $? -ne 0 ]; then
     echo "Testing failed"
     exit 1

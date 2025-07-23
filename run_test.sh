@@ -5,7 +5,7 @@
 
 echo "Starting testing with correction=False (MTL mode)..."
 sed -i 's/correction = .*/correction = False/' config.py
-python test_dsm.py
+python test.py
 if [ $? -ne 0 ]; then
     echo "Testing with correction=False failed"
     exit 1
@@ -16,7 +16,7 @@ sleep 15
 
 echo -e "\nStarting testing with correction=True (DAE mode)..."
 sed -i 's/correction = .*/correction = True/' config.py
-python test_dsm.py
+python test.py
 if [ $? -ne 0 ]; then
     echo "Testing with correction=True failed"
     exit 1

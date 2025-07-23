@@ -22,7 +22,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # DFC2019_crp512_bin, and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023Amini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'DFC2023S'  # Change this to the desired dataset name
+dataset_name = 'DFC2019_crp256_bin'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -59,9 +59,9 @@ uses_rgb_labels = dataset_name in rgb_label_datasets
 dataset_configs = {
     'Vaihingen': (320, 4),
     'DFC2018': (320, 4),
-    'Vaihingen_crp256': (256, 10),
-    'DFC2018_crp256': (256, 10),
-    'DFC2019_crp256': (256, 10),
+    'Vaihingen_crp256': (256, 6),
+    'DFC2018_crp256': (256, 6),
+    'DFC2019_crp256': (256, 6),
     'DFC2019_crp512': (512, 2),
     'DFC2023': (512, 2),
     'Contest': (512, 2),

@@ -27,7 +27,7 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
             level=logging.INFO,  # Set the logging level
             format='%(asctime)s - %(levelname)s - %(message)s',  # Specify the format
             handlers=[
-                logging.FileHandler(f"{log_output_path}/{dataset_name}_{'mtl' if not correction else 'dae'}_test_dsm_output.log", mode='w'),  # Log to file (w: overwrite mode; a: append mode)
+                logging.FileHandler(f"{log_output_path}/{dataset_name}_{'mtl' if not correction else 'dae'}_test_output.log", mode='w'),  # Log to file (w: overwrite mode; a: append mode)
                 logging.StreamHandler()  # Also log to console
             ]
         )

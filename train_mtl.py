@@ -25,7 +25,7 @@ from tensorflow.keras.losses import MeanSquaredError, CategoricalCrossentropy, H
 from nets import *
 from utils import *
 from metrics import *  # Import the new metrics module
-from test_dsm import test_dsm
+from test import test_dsm
 
 import matplotlib
 # Always use Agg backend for consistent non-interactive plotting
