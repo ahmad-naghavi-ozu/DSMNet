@@ -9,7 +9,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # Multi-GPU configuration
 # Specify which GPUs to use for training (comma-separated)
 # For single GPU: "0", For multi-GPU: "0,1" or "0,1,2,3" etc.
-gpu_devices = "0"  # Change this to your available GPU indices
+gpu_devices = "0,1"  # Change this to your available GPU indices
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_devices
 
 # Automatically determine multi-GPU mode based on number of devices specified
@@ -22,7 +22,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # DFC2019_crp512_bin, and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023Amini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'DFC2023Amini'  # Change this to the desired dataset name
+dataset_name = 'DFC2023S'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -121,12 +121,12 @@ dae_training_samples = 10000
 dae_min_loss = float('inf')  # Minimum loss (DSM noise) threshold to save the DAE network weights as checkpoints
 
 # MTL saved weights preloading mode. If True, then all MTL model will be initialized with saved weights before training
-mtl_preload = False
+mtl_preload = True
 # MTL backbone frozen mode. If True, then the MTL backbone weights will not get updated during training to save time
 mtl_bb_freeze = False
 
 # DAE saved weights preloading mode. If True, then all DAE model will be initialized with saved weights before training
-dae_preload = False
+dae_preload = True
 
 # Define the status and the path to save checkpoints for MTL and Unet
 # Only add SAR mode indicator for DFC2023 datasets
@@ -276,13 +276,22 @@ if multi_gpu_enabled:
     # batch_size * num_gpus total samples
     
     # However, for memory efficiency, let's reduce per-GPU batch size for multi-GPU
-    if strategy.num_replicas_in_sync >= 4:
+    # Reduce batch size based on crop size and number of GPUs to avoid OOM
+    if cropSize >= 512 and strategy.num_replicas_in_sync >= 3:
+        # For large images (512x512) with 3+ GPUs, use very small per-GPU batch
+        per_gpu_mtl_batch = 1
+        per_gpu_dae_batch = 1
+        print(f"INFO: Reducing per-GPU batch size to 1 due to large image size ({cropSize}px) with {strategy.num_replicas_in_sync} GPUs to avoid OOM")
+    elif strategy.num_replicas_in_sync >= 4:
         # For 4+ GPUs, use smaller per-GPU batch size to avoid OOM
         per_gpu_mtl_batch = max(1, mtl_batchSize // 2)  # Reduce by half
         per_gpu_dae_batch = max(1, dae_batchSize // 2)  # Reduce by half
+        print(f"INFO: Reducing per-GPU batch size from {mtl_batchSize} to {per_gpu_mtl_batch} due to {strategy.num_replicas_in_sync} GPUs to avoid OOM")
     else:
+        # For 2 GPUs or smaller images, use the original batch size
         per_gpu_mtl_batch = mtl_batchSize
         per_gpu_dae_batch = dae_batchSize
+        print(f"INFO: Using original per-GPU batch size ({per_gpu_mtl_batch}) - optimal configuration for {strategy.num_replicas_in_sync} GPUs with {cropSize}px images")
     
     # Global batch size is what we'll generate (will be split across GPUs)
     global_batch_size = per_gpu_mtl_batch * strategy.num_replicas_in_sync
