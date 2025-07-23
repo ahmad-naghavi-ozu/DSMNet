@@ -11,7 +11,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 multi_gpu_enabled = True
 # Specify which GPUs to use for multi-GPU training (comma-separated)
 # For single GPU: "0", For multi-GPU: "0,1" or "0,1,2,3" etc.
-gpu_devices = "2"  # Change this to your available GPU indices
+gpu_devices = "0,1,2,3"  # Change this to your available GPU indices
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_devices
 # Set TensorFlow log level to a specific level
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INFO, 2 = filter out INFO & WARNINGS, 3 = only ERROR messages
@@ -20,7 +20,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # DFC2019_crp512_bin, and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023Amini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'Huawei_Contest'  # Change this to the desired dataset name
+dataset_name = 'DFC2023S'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -182,7 +182,7 @@ patience_counter = 0
 # Plot configuration for train/valid errors
 plot_train_error = False  # Flag to enable/disable calculating and plotting training errors
 # Example: Add 'miou' to see segmentation metrics
-plot_metrics = ['rmse', 'delta1', 'rmse_building', 'rmse_matched', 'miou']  # List of metrics to plot from metric_names + segmentation_accuracy_metrics
+plot_metrics = ['rmse', 'delta1', 'iou', 'f1_score']  # List of metrics to plot from metric_names + segmentation_accuracy_metrics
 
 # Set the regression loss mode, either MSE or Huber
 reg_loss = 'mse'  # 'mse' or 'huber'

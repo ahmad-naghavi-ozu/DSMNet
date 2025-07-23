@@ -426,6 +426,9 @@ def compute_validation_metrics(
         train_avg_rmse = train_metrics_data['rmse']
         train_miou = train_metrics_data['miou']
         train_iou_per_class = train_metrics_data['iou_per_class']
+        train_precision_per_class = train_metrics_data['precision_per_class']
+        train_recall_per_class = train_metrics_data['recall_per_class']
+        train_f1_per_class = train_metrics_data['f1_per_class']
         train_avg_delta1 = train_metrics_data['delta1']
         train_avg_delta2 = train_metrics_data['delta2']
         train_avg_delta3 = train_metrics_data['delta3']
@@ -481,6 +484,9 @@ def compute_validation_metrics(
     valid_avg_rmse = valid_metrics_data['rmse']
     valid_miou = valid_metrics_data['miou']
     valid_iou_per_class = valid_metrics_data['iou_per_class']
+    valid_precision_per_class = valid_metrics_data['precision_per_class']
+    valid_recall_per_class = valid_metrics_data['recall_per_class']
+    valid_f1_per_class = valid_metrics_data['f1_per_class']
     valid_avg_delta1 = valid_metrics_data['delta1']
     valid_avg_delta2 = valid_metrics_data['delta2']
     valid_avg_delta3 = valid_metrics_data['delta3']
@@ -554,6 +560,21 @@ def compute_validation_metrics(
         if train_iou_per_class is not None:
             for i, iou_val in enumerate(train_iou_per_class):
                 train_metrics[f'iou_class{i}'] = train_metrics.get(f'iou_class{i}', []) + [iou_val]
+        
+        # Add per-class precision metrics if they exist
+        if train_precision_per_class is not None:
+            for i, precision_val in enumerate(train_precision_per_class):
+                train_metrics[f'precision_class{i}'] = train_metrics.get(f'precision_class{i}', []) + [precision_val]
+        
+        # Add per-class recall metrics if they exist
+        if train_recall_per_class is not None:
+            for i, recall_val in enumerate(train_recall_per_class):
+                train_metrics[f'recall_class{i}'] = train_metrics.get(f'recall_class{i}', []) + [recall_val]
+        
+        # Add per-class f1_score metrics if they exist
+        if train_f1_per_class is not None:
+            for i, f1_val in enumerate(train_f1_per_class):
+                train_metrics[f'f1_score_class{i}'] = train_metrics.get(f'f1_score_class{i}', []) + [f1_val]
     
     # Update validation metrics
     valid_metrics['mse'].append(valid_avg_mse)
@@ -577,6 +598,21 @@ def compute_validation_metrics(
     if valid_iou_per_class is not None:
         for i, iou_val in enumerate(valid_iou_per_class):
             valid_metrics[f'iou_class{i}'] = valid_metrics.get(f'iou_class{i}', []) + [iou_val]
+    
+    # Add per-class precision metrics if they exist
+    if valid_precision_per_class is not None:
+        for i, precision_val in enumerate(valid_precision_per_class):
+            valid_metrics[f'precision_class{i}'] = valid_metrics.get(f'precision_class{i}', []) + [precision_val]
+    
+    # Add per-class recall metrics if they exist
+    if valid_recall_per_class is not None:
+        for i, recall_val in enumerate(valid_recall_per_class):
+            valid_metrics[f'recall_class{i}'] = valid_metrics.get(f'recall_class{i}', []) + [recall_val]
+    
+    # Add per-class f1_score metrics if they exist
+    if valid_f1_per_class is not None:
+        for i, f1_val in enumerate(valid_f1_per_class):
+            valid_metrics[f'f1_score_class{i}'] = valid_metrics.get(f'f1_score_class{i}', []) + [f1_val]
 
     # Update plots
     fig, axes, lines = plot_train_valid_metrics(
