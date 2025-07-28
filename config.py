@@ -9,7 +9,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # Multi-GPU configuration
 # Specify which GPUs to use for training (comma-separated)
 # For single GPU: "0", For multi-GPU: "0,1" or "0,1,2,3" etc.
-gpu_devices = "0,1"  # Change this to your available GPU indices
+gpu_devices = "0"  # Change this to your available GPU indices
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_devices
 
 # Automatically determine multi-GPU mode based on number of devices specified
