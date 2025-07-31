@@ -9,7 +9,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # Multi-GPU configuration
 # Specify which GPUs to use for training (comma-separated)
 # For single GPU: "0", For multi-GPU: "0,1" or "0,1,2,3" etc.
-gpu_devices = "0"  # Change this to your available GPU indices
+gpu_devices = "0,1"  # Change this to your available GPU indices
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_devices
 
 # Automatically determine multi-GPU mode based on number of devices specified
@@ -121,12 +121,12 @@ dae_training_samples = 10000
 dae_min_loss = float('inf')  # Minimum loss (DSM noise) threshold to save the DAE network weights as checkpoints
 
 # MTL saved weights preloading mode. If True, then all MTL model will be initialized with saved weights before training
-mtl_preload = False
+mtl_preload = True
 # MTL backbone frozen mode. If True, then the MTL backbone weights will not get updated during training to save time
 mtl_bb_freeze = False
 
 # DAE saved weights preloading mode. If True, then all DAE model will be initialized with saved weights before training
-dae_preload = False
+dae_preload = True
 
 # Define the status and the path to save checkpoints for MTL and Unet
 # Only add SAR mode indicator for DFC2023 datasets
@@ -212,7 +212,7 @@ mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 # Set flag for applying denoising autoencoder during testing. 
 # Note: If set to True, this will affect train/valid error computations
 # This is because the DAE will be used to denoise the DSM before calculating the errors.
-correction = True
+correction = False
 
 # Define label codes for semantic segmentation task, and
 # scaling factors (weights) for different types of loss functions in MTL
@@ -228,7 +228,7 @@ elif 'DFC2018' in dataset_name:
 elif dataset_name.startswith('DFC2019'):
     if dataset_name.endswith('bin'):
         label_codes = [0, 1]
-        w1, w2, w3, w4 = (1e-2, 1e-1, 1e-5, 100.0)  # weights for: dsm, sem, norm, edge
+        w1, w2, w3, w4 = (1e-4, 1e-5, 1e-9, 100.0)  # weights for: dsm, sem, norm, edge
     else:
         label_codes = [2, 5, 6, 9, 17, 65]
         w1, w2, w3, w4 = (1e-2, 1e-1, 1e-5, 100.0)  # weights for: dsm, sem, norm, edge
