@@ -110,7 +110,10 @@ mtl_min_loss = float('inf')  # Minimum DSM loss threshold to save the MTL networ
 
 # Parameters for the Denoising AutoEncoder (DAE) component defined as the same way for MTL
 dae_lr_decay = False
-dae_lr = 0.0002
+dae_lr = 0.00002  # Initial learning rate for the DAE network
+# Note: For DAE, we may use a smaller learning rate for better convergence
+# This is especially useful for datasets with high noise levels or when fine-tuning a pre-trained model
+# Example: For DFC2019_bin, we may use a smaller learning rate
 dae_batchSize = batch_size  # Batch size for training the DAE network, now dynamic based on dataset
 dae_numEpochs = 1000  # Number of epochs for training the DAE network (reduced for testing)
 
@@ -121,12 +124,12 @@ dae_training_samples = 10000
 dae_min_loss = float('inf')  # Minimum loss (DSM noise) threshold to save the DAE network weights as checkpoints
 
 # MTL saved weights preloading mode. If True, then all MTL model will be initialized with saved weights before training
-mtl_preload = True
+mtl_preload = False
 # MTL backbone frozen mode. If True, then the MTL backbone weights will not get updated during training to save time
 mtl_bb_freeze = False
 
 # DAE saved weights preloading mode. If True, then all DAE model will be initialized with saved weights before training
-dae_preload = True
+dae_preload = False
 
 # Define the status and the path to save checkpoints for MTL and Unet
 # Only add SAR mode indicator for DFC2023 datasets
