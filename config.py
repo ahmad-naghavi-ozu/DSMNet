@@ -158,7 +158,7 @@ train_valid_flag = True
 # Early stopping configuration only if train_valid_flag is set to True
 early_stop_flag = True  # Enable/disable early stopping 
 early_stop_patience = 10  # Number of epochs to wait for improvement before stopping
-early_stop_delta = 1e-2  # Minimum change in monitored value to qualify as an improvement
+early_stop_delta = 1e-1  # Minimum change in monitored value to qualify as an improvement
 
 # Evaluation metric configuration
 # Define available metrics first, since other configs depend on it

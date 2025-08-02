@@ -26,5 +26,4 @@ dependencies:
   - scikit-image
   - opencv
   - pillow
-prefix: /home/asfand/.conda/envs/bhe_tf
 

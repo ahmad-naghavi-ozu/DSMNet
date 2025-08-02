@@ -393,5 +393,4 @@ dependencies:
   - zstd=1.5.6=ha6fb4c9_0
   - pip:
     - opencv-contrib-python==4.10.0.84
-prefix: /home/asfand/.conda/envs/bhe_tf
 
