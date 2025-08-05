@@ -215,7 +215,7 @@ mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 # Set flag for applying denoising autoencoder during testing. 
 # Note: If set to True, this will affect train/valid error computations
 # This is because the DAE will be used to denoise the DSM before calculating the errors.
-correction = False
+correction = True
 
 # Define label codes for semantic segmentation task, and
 # scaling factors (weights) for different types of loss functions in MTL
@@ -231,7 +231,7 @@ elif 'DFC2018' in dataset_name:
 elif dataset_name.startswith('DFC2019'):
     if dataset_name.endswith('bin'):
         label_codes = [0, 1]
-        w1, w2, w3, w4 = (1e-4, 1e-5, 1e-9, 100.0)  # weights for: dsm, sem, norm, edge
+        w1, w2, w3, w4 = (1e-2, 1e-1, 1e-5, 100.0)  # weights for: dsm, sem, norm, edge
     else:
         label_codes = [2, 5, 6, 9, 17, 65]
         w1, w2, w3, w4 = (1e-2, 1e-1, 1e-5, 100.0)  # weights for: dsm, sem, norm, edge
