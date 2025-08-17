@@ -27,7 +27,7 @@ dataset_name = 'DFC2019_crp512_bin'  # Change this to the desired dataset name
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
 # globally available to other projects as well. You should end the path with a '/'
-shortcut_path = '../datasets/'  # Change this to the desired path
+shortcut_path = '../../datasets/'  # Change this to the desired path
 
 # Dataset organization configuration
 # Large tile datasets: require random patch extraction
