@@ -21,7 +21,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Define the dataset to be used for training and testing
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # DFC2019_crp512_bin, and DFC2023 derivatives as follows:
-# DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023Amini, and DFC2023S (Sinan's splitting) datasets
+# DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023mini, and DFC2023S (Sinan's splitting) datasets
 dataset_name = 'DFC2019_crp512_bin'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
