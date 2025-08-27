@@ -4,7 +4,6 @@
 # Except specific folders that we want to include
 !images/
 !env/
-!visualization/
 
 # Always ignore these common files/folders
 __pycache__/
