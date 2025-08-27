@@ -1,6 +1,9 @@
 # Ignore all folders by default
 */
 
+# Explicitly ignore specific directories
+visualization/
+
 # Except specific folders that we want to include
 !images/
 !env/
