@@ -175,7 +175,6 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             Batch of edge maps (if mtl_flag=True)
     Notes:
     -----
-    - Input images can be normalized based on normalize_flag
     - For DFC2018, DSM is computed as difference between surface and terrain models
     - Batch size is controlled by mtl_global_batch_size for proper multi-GPU distribution
     - Patch size is controlled by cropSize global variable
@@ -202,37 +201,31 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
         idx = random.randint(0, len(train_rgb) - 1)
         if dataset_name == 'Vaihingen':
             rgb_tile = np.array(Image.open(train_rgb[idx])); 
-            rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
             dsm_tile = np.array(Image.open(train_dsm[idx])).astype(np.float32); 
-            dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
 
             if mtl_flag:
                 sem_tile = np.array(Image.open(train_sem[idx])).astype(np.uint8)
                 if norm_flag:
                     norm_tile = genNormals(dsm_tile); 
-                    norm_tile = norm_tile if normalize_flag else (norm_tile * 255).astype(np.uint8)
+                    norm_tile = (norm_tile * 255).astype(np.uint8)
                 if edge_flag:
-                    edge_tile = genEdgeMap(dsm_tile); 
-                    edge_tile = normalize_array(edge_tile, 0, 1) if normalize_flag else edge_tile
+                    edge_tile = genEdgeMap(dsm_tile);
 
         elif dataset_name == 'DFC2018':
             rgb_tile = np.array(Image.open(train_rgb[idx])); 
-            rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
             dsm_tile = np.array(Image.open(train_dsm[2 * idx])).astype(np.float32)
             dem_tile = np.array(Image.open(train_dsm[2 * idx + 1])).astype(np.float32)
             dsm_tile = correctTile(dsm_tile)
             dem_tile = correctTile(dem_tile)
             dsm_tile = dsm_tile - dem_tile  # Caution! nDSM here could still contain negative values
-            dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
 
             if mtl_flag:
                 sem_tile = np.array(Image.open(train_sem[idx])).astype(np.uint8)
                 if norm_flag:
                     norm_tile = genNormals(dsm_tile); 
-                    norm_tile = norm_tile if normalize_flag else (norm_tile * 255).astype(np.uint8)
+                    norm_tile = (norm_tile * 255).astype(np.uint8)
                 if edge_flag:
-                    edge_tile = genEdgeMap(dsm_tile); 
-                    edge_tile = normalize_array(edge_tile, 0, 1) if normalize_flag else edge_tile
+                    edge_tile = genEdgeMap(dsm_tile);
 
     # Generate or select random patches - now using actual_batch_size for proper multi-GPU distribution
     for i in range(actual_batch_size):
@@ -268,31 +261,26 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                     rgb = cv2.imread(train_rgb[sample_idx], cv2.IMREAD_ANYDEPTH | cv2.IMREAD_COLOR)
                     if rgb is not None and len(rgb.shape) == 3:
                         rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
-                    # SSBH-specific uint16 normalization for RGB only (independent of normalize_flag)
+                    # SSBH-specific uint16 normalization for RGB only
                     if rgb.dtype == np.uint16:
                         rgb = rgb.astype(np.float32) / 65535.0
-                    else:
-                        rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
+                    # No additional normalization needed for non-uint16 data
                 except:
                     # Fallback to tifffile if OpenCV fails
                     rgb = tifffile.imread(train_rgb[sample_idx])
                     if rgb.dtype == np.uint16:
                         rgb = rgb.astype(np.float32) / 65535.0
-                    else:
-                        rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
+                    # No additional normalization needed for non-uint16 data
             else:
                 rgb = np.array(Image.open(train_rgb[sample_idx]))
-                rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
             
             # Add SAR channels if available and enabled
             if sar_mode and any(dataset_name.startswith(d) for d in sar_datasets):
                 sar = np.array(Image.open(train_sar[sample_idx]))
-                sar = normalize_array(sar, 0, 1) if normalize_flag else sar
                 rgb = np.dstack((rgb, sar))
             
             # Load DSM with standard PIL (SSBH DSM files are not 16-bit)
             dsm = np.array(Image.open(train_dsm[sample_idx])).astype(np.float32)
-            dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
             
             # Apply center-cropping for Dublin dataset (500x500 -> 480x480)
             if any(dataset_name.startswith(d) for d in center_crop_datasets):
@@ -307,10 +295,9 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                 
                 if norm_flag:
                     norm = genNormals(dsm); 
-                    norm = norm if normalize_flag else (norm * 255).astype(np.uint8)
+                    norm = (norm * 255).astype(np.uint8)
                 if edge_flag:
-                    edge = genEdgeMap(dsm); 
-                    edge = normalize_array(edge, 0, 1) if normalize_flag else edge
+                    edge = genEdgeMap(dsm);
 
         rgb_batch.append(rgb)
         dsm_batch.append(dsm)
@@ -355,33 +342,28 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
     Returns:
         tuple: Contains:
             - rgb_tile (numpy.ndarray): RGB image tile (with SAR channels appended for DFC2023 if sar_mode=True)
-            - dsm_tile (numpy.ndarray): DSM tile (normalized if normalize_flag=True)
+            - dsm_tile (numpy.ndarray): DSM tile
             - sem_tile (numpy.ndarray): Semantic segmentation tile
     Notes:
         - For DFC2018 dataset, DSM is calculated as the difference between DSM and DEM tiles
         - Function behavior depends on global variables:
             - dataset_name: Determines which dataset is being processed
-            - normalize_flag: Controls whether to normalize the data
             - sar_mode: Controls whether to include SAR data for DFC2023 datasets
     """
     # Handle large tile datasets
     if dataset_name in large_tile_datasets:
         if dataset_name == 'Vaihingen':
             rgb_tile = np.array(Image.open(test_rgb[tile])); 
-            rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
             dsm_tile = np.array(Image.open(test_dsm[tile])).astype(np.float32); 
-            dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
             sem_tile = np.array(Image.open(test_sem[tile])).astype(np.uint8)
 
         elif dataset_name == 'DFC2018':
             rgb_tile = np.array(Image.open(test_rgb[tile])); 
-            rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
             dsm_tile = np.array(Image.open(test_dsm[2 * tile])).astype(np.float32)
             dem_tile = np.array(Image.open(test_dsm[2 * tile + 1])).astype(np.float32)
             dsm_tile = correctTile(dsm_tile)
             dem_tile = correctTile(dem_tile)
             dsm_tile = dsm_tile - dem_tile  # Caution! nDSM here could still contain negative values
-            dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
             sem_tile = np.array(Image.open(test_sem[tile])).astype(np.uint8)
 
     # Handle regular-sized datasets with unified approach
@@ -392,31 +374,26 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
                 rgb_tile = cv2.imread(test_rgb[tile], cv2.IMREAD_ANYDEPTH | cv2.IMREAD_COLOR)
                 if rgb_tile is not None and len(rgb_tile.shape) == 3:
                     rgb_tile = cv2.cvtColor(rgb_tile, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
-                # SSBH-specific uint16 normalization for RGB only (independent of normalize_flag)
+                # SSBH-specific uint16 normalization for RGB only
                 if rgb_tile.dtype == np.uint16:
                     rgb_tile = rgb_tile.astype(np.float32) / 65535.0
-                else:
-                    rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+                # No additional normalization needed for non-uint16 data
             except:
                 # Fallback to tifffile if OpenCV fails
                 rgb_tile = tifffile.imread(test_rgb[tile])
                 if rgb_tile.dtype == np.uint16:
                     rgb_tile = rgb_tile.astype(np.float32) / 65535.0
-                else:
-                    rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+                # No additional normalization needed for non-uint16 data
         else:
             rgb_tile = np.array(Image.open(test_rgb[tile]))
-            rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
         
         # Add SAR channels if available and enabled
         if sar_mode and any(dataset_name.startswith(d) for d in sar_datasets):
             sar_tile = np.array(Image.open(test_sar[tile])); 
-            sar_tile = normalize_array(sar_tile, 0, 1) if normalize_flag else sar_tile
             rgb_tile = np.dstack((rgb_tile, sar_tile))
         
         # Load DSM with standard PIL (SSBH DSM files are not 16-bit)
         dsm_tile = np.array(Image.open(test_dsm[tile])).astype(np.float32)
-        dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
         
         # Apply center-cropping for Dublin dataset (500x500 -> 480x480)
         if any(dataset_name.startswith(d) for d in center_crop_datasets):

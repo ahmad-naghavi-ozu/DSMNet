@@ -94,9 +94,6 @@ else:
 sar_path_indicator = any(dataset_name.startswith(d) for d in sar_datasets)
 sar_mode = False
 
-# Normalization flag for input RGB, DSM, etc
-normalize_flag = False
-
 # Parameters for the Multitask Learning (MTL) component
 mtl_lr_decay = False  # Flag to enable/disable learning rate decay
 mtl_lr = 0.0002  # Initial learning rate for the MTL network
