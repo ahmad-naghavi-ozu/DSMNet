@@ -3,6 +3,7 @@
 
 # Explicitly ignore specific directories
 visualization/
+docs/
 
 # Except specific folders that we want to include
 !images/

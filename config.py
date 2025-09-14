@@ -22,7 +22,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # DFC2019_crp512_bin, and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023mini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'DFC2019_crp512_bin'  # Change this to the desired dataset name
+dataset_name = 'SSBH'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -34,7 +34,7 @@ shortcut_path = '../../datasets/'  # Change this to the desired path
 large_tile_datasets = ['Vaihingen', 'DFC2018']
 # Regular size datasets: use standard folder structure (train/valid/test with rgb/dsm/sem/sar subfolders)
 regular_size_datasets = ['DFC2019_crp256', 'DFC2019_crp512', 'DFC2023', 'Vaihingen_crp256', 
-                         'DFC2018_crp256', 'Dublin', 'Dublin_ndsm', 'Contest', 'Huawei_Contest']
+                         'DFC2018_crp256', 'Dublin', 'Dublin_ndsm', 'Contest', 'Huawei_Contest', 'SSBH']
 
 # Datasets with SAR data available
 sar_datasets = ['DFC2023']
@@ -67,6 +67,7 @@ dataset_configs = {
     'Contest': (512, 2),
     'Huawei_Contest': (512, 2),  # Huawei Contest dataset
     'Dublin': (480, 2),  # Updated to match model output dimensions (480 is divisible by 32)
+    'SSBH': (256, 6),  # SSBH dataset: 256x256px samples with moderate batch size
 }
 
 # Get cropSize and batchSize based on dataset name, with fallback logic
@@ -206,7 +207,7 @@ mid_rise_max = 40    # Buildings with height >= 15m and < 40m are considered mid
                      # Buildings with height >= 40m are considered high-rise
 
 # Set flags for additive heads of MTL, viz semantic segmentation, surface normals, and edgemaps
-sem_flag, norm_flag, edge_flag = True, True, False
+sem_flag, norm_flag, edge_flag = True, False, False
 sem_flag = False if any(dataset_name.startswith(d) for d in no_sem_datasets) else sem_flag  # Disable semantic segmentation for datasets without labels
 
 # Set flag for MTL heads interconnection mode, either fully intertwined ('full') or just for the DSM head ('dsm')
@@ -248,6 +249,11 @@ elif dataset_name.startswith('Dublin'):
     # Dublin dataset has no semantic segmentation labels
     label_codes = [0]  # Dummy label code for datasets without semantic segmentation
     w1, w2, w3, w4 = (1e-3, 0.0, 1e-5, 1e-3)  # weights for: dsm, sem (disabled), norm, edge
+
+elif dataset_name.startswith('SSBH'):
+    # SSBH dataset: binary building classification (background=0, building=1)
+    label_codes = [0, 1]
+    w1, w2, w3, w4 = (1e-3, 1e-3, 1e-8, 1e-3)  # weights for: dsm, sem, norm, edge
 
 # Handle datasets without semantic labels
 if any(dataset_name.startswith(d) for d in no_sem_datasets):

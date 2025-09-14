@@ -8,6 +8,7 @@ import cv2
 import PIL
 import os
 import tensorflow as tf
+import tifffile
 from PIL import Image
 from skimage import io
 from typing import Optional, List, Tuple
@@ -261,8 +262,27 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             sample_idx = (iter - 1) * actual_batch_size + i
             
             # Handle all regular-sized datasets with standard folder structure
-            rgb = np.array(Image.open(train_rgb[sample_idx]))
-            rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
+            # Use OpenCV for SSBH RGB files (16-bit TIFF), tifffile as fallback, PIL for others
+            if dataset_name.startswith('SSBH'):
+                try:
+                    rgb = cv2.imread(train_rgb[sample_idx], cv2.IMREAD_ANYDEPTH | cv2.IMREAD_COLOR)
+                    if rgb is not None and len(rgb.shape) == 3:
+                        rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
+                    # SSBH-specific uint16 normalization for RGB only (independent of normalize_flag)
+                    if rgb.dtype == np.uint16:
+                        rgb = rgb.astype(np.float32) / 65535.0
+                    else:
+                        rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
+                except:
+                    # Fallback to tifffile if OpenCV fails
+                    rgb = tifffile.imread(train_rgb[sample_idx])
+                    if rgb.dtype == np.uint16:
+                        rgb = rgb.astype(np.float32) / 65535.0
+                    else:
+                        rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
+            else:
+                rgb = np.array(Image.open(train_rgb[sample_idx]))
+                rgb = normalize_array(rgb, 0, 1) if normalize_flag else rgb
             
             # Add SAR channels if available and enabled
             if sar_mode and any(dataset_name.startswith(d) for d in sar_datasets):
@@ -270,6 +290,7 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                 sar = normalize_array(sar, 0, 1) if normalize_flag else sar
                 rgb = np.dstack((rgb, sar))
             
+            # Load DSM with standard PIL (SSBH DSM files are not 16-bit)
             dsm = np.array(Image.open(train_dsm[sample_idx])).astype(np.float32)
             dsm = normalize_array(dsm, 0, 1) if normalize_flag else dsm
             
@@ -281,6 +302,7 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             if mtl_flag:
                 # Only load semantic labels if sem_flag is enabled
                 if sem_flag:
+                    # Use standard PIL for SSBH SEM files (not 16-bit)
                     sem = np.array(Image.open(train_sem[sample_idx])).astype(np.uint8)
                 
                 if norm_flag:
@@ -364,8 +386,27 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
 
     # Handle regular-sized datasets with unified approach
     else:
-        rgb_tile = np.array(Image.open(test_rgb[tile])); 
-        rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+        # Use OpenCV for SSBH RGB files (16-bit TIFF), tifffile as fallback, PIL for others
+        if dataset_name.startswith('SSBH'):
+            try:
+                rgb_tile = cv2.imread(test_rgb[tile], cv2.IMREAD_ANYDEPTH | cv2.IMREAD_COLOR)
+                if rgb_tile is not None and len(rgb_tile.shape) == 3:
+                    rgb_tile = cv2.cvtColor(rgb_tile, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
+                # SSBH-specific uint16 normalization for RGB only (independent of normalize_flag)
+                if rgb_tile.dtype == np.uint16:
+                    rgb_tile = rgb_tile.astype(np.float32) / 65535.0
+                else:
+                    rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+            except:
+                # Fallback to tifffile if OpenCV fails
+                rgb_tile = tifffile.imread(test_rgb[tile])
+                if rgb_tile.dtype == np.uint16:
+                    rgb_tile = rgb_tile.astype(np.float32) / 65535.0
+                else:
+                    rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
+        else:
+            rgb_tile = np.array(Image.open(test_rgb[tile]))
+            rgb_tile = normalize_array(rgb_tile, 0, 1) if normalize_flag else rgb_tile
         
         # Add SAR channels if available and enabled
         if sar_mode and any(dataset_name.startswith(d) for d in sar_datasets):
@@ -373,6 +414,7 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
             sar_tile = normalize_array(sar_tile, 0, 1) if normalize_flag else sar_tile
             rgb_tile = np.dstack((rgb_tile, sar_tile))
         
+        # Load DSM with standard PIL (SSBH DSM files are not 16-bit)
         dsm_tile = np.array(Image.open(test_dsm[tile])).astype(np.float32)
         dsm_tile = normalize_array(dsm_tile, 0, 1) if normalize_flag else dsm_tile
         
@@ -383,6 +425,7 @@ def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
         
         # Handle semantic labels - only load if the dataset has them
         if not any(dataset_name.startswith(d) for d in no_sem_datasets):
+            # Use standard PIL for SSBH SEM files (not 16-bit)
             sem_tile = np.array(Image.open(test_sem[tile])).astype(np.uint8)
         else:
             # Return None for datasets without semantic labels
