@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # To run the script, execute the following command: 
-# chmod +x run_train_test.sh && ./run_train_test.sh
+# chmod +x run_pipeline.sh && ./run_pipeline.sh
 
 # Multi-GPU DSMNet Training and Testing Pipeline
 # This script runs the complete DSMNet pipeline with multi-GPU support
@@ -14,8 +14,7 @@ echo "=== DSMNet Multi-GPU Training Pipeline ==="
 echo "Check config.py for multi-GPU settings before running"
 
 echo "Starting MTL training..."
-sed -i 's/correction = .*/correction = False/' config.py
-python train_mtl.py
+CORRECTION=False python train_mtl.py
 if [ $? -ne 0 ]; then
     echo "MTL training failed"
     exit 1
@@ -25,8 +24,7 @@ echo "Waiting 30 seconds for checkpoints and GPU cooldown..."
 sleep 30
 
 echo -e "\nStarting MTL testing..."
-sed -i 's/correction = .*/correction = False/' config.py
-python test.py
+CORRECTION=False python test.py
 if [ $? -ne 0 ]; then
     echo "Testing failed"
     exit 1
@@ -36,8 +34,7 @@ echo "Waiting 30 seconds for checkpoints and GPU cooldown..."
 sleep 30
 
 echo -e "\nStarting DAE training..."
-sed -i 's/correction = .*/correction = True/' config.py
-python train_dae.py
+CORRECTION=True python train_dae.py
 if [ $? -ne 0 ]; then
     echo "DAE training failed"
     exit 1
@@ -47,8 +44,7 @@ echo "Waiting 30 seconds for checkpoints and GPU cooldown..."
 sleep 30
 
 echo -e "\nStarting DAE testing..."
-sed -i 's/correction = .*/correction = True/' config.py
-python test.py
+CORRECTION=True python test.py
 if [ $? -ne 0 ]; then
     echo "Testing failed"
     exit 1

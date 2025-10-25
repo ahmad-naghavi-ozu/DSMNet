@@ -9,7 +9,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # Multi-GPU configuration
 # Specify which GPUs to use for training (comma-separated)
 # For single GPU: "0", For multi-GPU: "0,1" or "0,1,2,3" etc.
-gpu_devices = "0,1"  # Change this to your available GPU indices
+gpu_devices = "0"  # Change this to your available GPU indices
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_devices
 
 # Automatically determine multi-GPU mode based on number of devices specified
@@ -22,7 +22,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # DFC2019_crp512_bin, and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023mini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'SSBH'  # Change this to the desired dataset name
+dataset_name = 'SSBHmini'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -94,9 +94,23 @@ else:
 sar_path_indicator = any(dataset_name.startswith(d) for d in sar_datasets)
 sar_mode = False
 
+## Dataset-specific learning rate configuration
+# Learning Rate Configuration Notes for SSBH Dataset:
+# ===================================================
+# SSBH uses uint16 RGB images normalized to [0,1] instead of the typical uint8 [0,255] range.
+# This smaller input magnitude affects gradient flow and requires adjusted learning rates, typically lower than usual.
+# ===================================================
+if dataset_name.startswith('SSBH'):
+    # REDUCED learning rates to fix semantic segmentation failure (Class 1 IoU = 0.0000)
+    mtl_lr = 0.000001 
+    dae_lr = 0.0000001
+else:
+    # Default learning rates for uint8 [0,255] RGB datasets
+    mtl_lr = 0.0002   # Initial learning rate for the MTL network
+    dae_lr = 0.00002  # Initial learning rate for the DAE network
+
 # Parameters for the Multitask Learning (MTL) component
 mtl_lr_decay = False  # Flag to enable/disable learning rate decay
-mtl_lr = 0.0002  # Initial learning rate for the MTL network
 mtl_batchSize = batch_size  # Batch size for training the MTL network, now dynamic based on dataset
 mtl_numEpochs = 1000  # Number of epochs for training the MTL network (reduced for testing)
 
@@ -108,7 +122,6 @@ mtl_min_loss = float('inf')  # Minimum DSM loss threshold to save the MTL networ
 
 # Parameters for the Denoising AutoEncoder (DAE) component defined as the same way for MTL
 dae_lr_decay = False
-dae_lr = 0.00002  # Initial learning rate for the DAE network
 # Note: For DAE, we may use a smaller learning rate for better convergence
 # This is especially useful for datasets with high noise levels or when fine-tuning a pre-trained model
 # Example: For DFC2019_bin, we may use a smaller learning rate
@@ -204,7 +217,7 @@ mid_rise_max = 40    # Buildings with height >= 15m and < 40m are considered mid
                      # Buildings with height >= 40m are considered high-rise
 
 # Set flags for additive heads of MTL, viz semantic segmentation, surface normals, and edgemaps
-sem_flag, norm_flag, edge_flag = True, False, False
+sem_flag, norm_flag, edge_flag = True, True, False
 sem_flag = False if any(dataset_name.startswith(d) for d in no_sem_datasets) else sem_flag  # Disable semantic segmentation for datasets without labels
 
 # Set flag for MTL heads interconnection mode, either fully intertwined ('full') or just for the DSM head ('dsm')
@@ -213,7 +226,9 @@ mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 # Set flag for applying denoising autoencoder during testing. 
 # Note: If set to True, this will affect train/valid error computations
 # This is because the DAE will be used to denoise the DSM before calculating the errors.
-correction = True
+# Can be overridden by setting CORRECTION environment variable
+correction = os.environ.get('CORRECTION', 'True').lower() == 'true'
+correction = False  # IGNORE
 
 # Define label codes for semantic segmentation task, and
 # scaling factors (weights) for different types of loss functions in MTL
@@ -248,9 +263,10 @@ elif dataset_name.startswith('Dublin'):
     w1, w2, w3, w4 = (1e-3, 0.0, 1e-5, 1e-3)  # weights for: dsm, sem (disabled), norm, edge
 
 elif dataset_name.startswith('SSBH'):
-    # SSBH dataset: binary building classification (background=0, building=1)
+    # SSBH dataset: binary building classification (background=0, building=1) with much class imbalance
     label_codes = [0, 1]
-    w1, w2, w3, w4 = (1e-3, 1e-3, 1e-8, 1e-3)  # weights for: dsm, sem, norm, edge
+    # w1, w2, w3, w4 = (1e-1, 50.0, 1e-5, 1e-3)  # weights for: dsm, sem, norm, edge
+    w1, w2, w3, w4 = (1e0, 1e3, 1e-3, 1e-3)  # weights for: dsm, sem, norm, edge
 
 # Handle datasets without semantic labels
 if any(dataset_name.startswith(d) for d in no_sem_datasets):
