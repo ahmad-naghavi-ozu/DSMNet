@@ -9,7 +9,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # Multi-GPU configuration
 # Specify which GPUs to use for training (comma-separated)
 # For single GPU: "0", For multi-GPU: "0,1" or "0,1,2,3" etc.
-gpu_devices = "0"  # Change this to your available GPU indices
+gpu_devices = "0,1"  # Change this to your available GPU indices
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_devices
 
 # Automatically determine multi-GPU mode based on number of devices specified
@@ -22,7 +22,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # DFC2019_crp512_bin, and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023mini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'SSBHmini'  # Change this to the desired dataset name
+dataset_name = 'DFC2019_crp512_bin'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -228,7 +228,7 @@ mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 # This is because the DAE will be used to denoise the DSM before calculating the errors.
 # Can be overridden by setting CORRECTION environment variable
 correction = os.environ.get('CORRECTION', 'True').lower() == 'true'
-correction = False  # IGNORE
+# correction = False  # IGNORE the above line if using environment variable
 
 # Define label codes for semantic segmentation task, and
 # scaling factors (weights) for different types of loss functions in MTL
