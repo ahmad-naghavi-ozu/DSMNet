@@ -70,6 +70,8 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
     total_rmse_building = total_rmse_matched = 0.0
     total_high_rise_rmse = total_mid_rise_rmse = total_low_rise_rmse = 0.0
     count_high_rise = count_mid_rise = count_low_rise = 0
+    # Initialize R² metric
+    total_r2 = 0.0
     confusion_matrix = np.zeros((sem_k, sem_k))  # Initialize confusion matrix
     total_time = 0
 
@@ -188,7 +190,8 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
         total_mse, total_mae, total_rmse, \
         total_rmse_building, total_rmse_matched, \
         total_high_rise_rmse, total_mid_rise_rmse, total_low_rise_rmse, \
-        count_high_rise, count_mid_rise, count_low_rise, _, _ = compute_dsm_metrics(
+        count_high_rise, count_mid_rise, count_low_rise, \
+        total_r2, _, _ = compute_dsm_metrics(
             verbose=verbose,
             logger=logger,
             total_delta1=total_delta1,
@@ -208,7 +211,8 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
             dsm_tile=dsm_tile,
             dsm_pred=dsm_pred,
             gt_mask=gt_mask if 'gt_mask' in locals() else None,
-            pred_mask=pred_mask if 'pred_mask' in locals() else None
+            pred_mask=pred_mask if 'pred_mask' in locals() else None,
+            total_r2=total_r2
         )
 
         # Keep track of computation time
@@ -257,6 +261,7 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
     avg_mse = total_mse / tilesLen
     avg_mae = total_mae / tilesLen
     avg_rmse = total_rmse / tilesLen
+    avg_r2 = total_r2 / tilesLen
     avg_delta1 = total_delta1 / tilesLen
     avg_delta2 = total_delta2 / tilesLen
     avg_delta3 = total_delta3 / tilesLen
@@ -275,6 +280,7 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
             f"    MSE:                {avg_mse:.6f}\n"
             f"    MAE:                {avg_mae:.6f}\n"
             f"    RMSE:               {avg_rmse:.6f}\n"
+            f"    R²:                 {avg_r2:.6f}\n"
             f"    Delta1:             {avg_delta1:.6f} ({avg_delta1*100:.2f}%)\n"
             f"    Delta2:             {avg_delta2:.6f} ({avg_delta2*100:.2f}%)\n"
             f"    Delta3:             {avg_delta3:.6f} ({avg_delta3*100:.2f}%)\n"
@@ -323,6 +329,7 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
         "mse": avg_mse,
         "mae": avg_mae, 
         "rmse": avg_rmse,
+        "r2": avg_r2,
         "delta1": avg_delta1,
         "delta2": avg_delta2,
         "delta3": avg_delta3,

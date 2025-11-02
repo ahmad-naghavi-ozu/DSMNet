@@ -8,6 +8,40 @@ import logging
 from typing import Optional, List, Tuple
 from config import *
 
+
+def r2_score(y, yhat, eps=1e-8):
+    """
+    Compute the coefficient of determination (R²) for regression tasks.
+    
+    R² represents the proportion of variance in the dependent variable that is 
+    predictable from the independent variable(s). It ranges from -∞ to 1, where:
+    - 1.0 indicates perfect prediction
+    - 0.0 indicates the model performs no better than a horizontal line at the mean
+    - Negative values indicate the model performs worse than the mean
+    
+    Args:
+        y (np.ndarray): Ground truth values (flattened array)
+        yhat (np.ndarray): Predicted values (flattened array)
+        eps (float): Small epsilon value to avoid division by zero
+        
+    Returns:
+        float: R² score, or None if input is empty
+    """
+    if y.size == 0:
+        return None
+    
+    # Residual sum of squares
+    ss_res = np.sum((y - yhat) ** 2)
+    
+    # Total sum of squares
+    ss_tot = np.sum((y - np.mean(y)) ** 2)
+    
+    # Handle edge case where all ground truth values are the same
+    if ss_tot < eps:
+        return 0.0
+    
+    return 1.0 - ss_res / (ss_tot + eps)
+
 def update_confusion_matrix(pred, target):
     """
     Update confusion matrix for semantic segmentation evaluation.
@@ -167,7 +201,8 @@ def compute_dsm_metrics(
     dsm_tile,
     dsm_pred,
     gt_mask=None,
-    pred_mask=None
+    pred_mask=None,
+    total_r2=0.0
 ):
     """
     Compute Digital Surface Model (DSM) evaluation metrics for a single tile.
@@ -196,6 +231,7 @@ def compute_dsm_metrics(
         dsm_pred (numpy.ndarray): Predicted DSM tile
         gt_mask (numpy.ndarray, optional): Ground truth segmentation mask (1 for buildings)
         pred_mask (numpy.ndarray, optional): Predicted segmentation mask (1 for buildings)
+        total_r2 (float): Running total for R² score on all pixels
         
     Returns:
         tuple:
@@ -213,6 +249,7 @@ def compute_dsm_metrics(
             - count_high_rise (int): Updated count of tiles with high-rise buildings
             - count_mid_rise (int): Updated count of tiles with mid-rise buildings
             - count_low_rise (int): Updated count of tiles with low-rise buildings
+            - total_r2 (float): Updated running total for R² score
             - dsm_tile (numpy.ndarray): Filtered ground truth DSM
             - dsm_pred (numpy.ndarray): Filtered predicted DSM
             
@@ -259,6 +296,11 @@ def compute_dsm_metrics(
     tile_delta1 = np.mean(max_ratio < 1.25)
     tile_delta2 = np.mean(max_ratio < 1.25 ** 2)
     tile_delta3 = np.mean(max_ratio < 1.25 ** 3)
+
+    # 7.5. Compute R² score for overall DSM prediction
+    tile_r2 = r2_score(dsm_tile_, dsm_pred_)
+    if tile_r2 is None:
+        tile_r2 = 0.0
 
     # 8. Compute building-specific height metrics
     tile_rmse_building = 0.0
@@ -322,6 +364,7 @@ def compute_dsm_metrics(
         logger.info(f"Tile MSE   : {tile_mse:.4f}")
         logger.info(f"Tile MAE   : {tile_mae:.4f}")
         logger.info(f"Tile RMSE  : {tile_rmse:.4f}")
+        logger.info(f"Tile R²    : {tile_r2:.4f}")
         logger.info(f"Tile Delta1: {tile_delta1:.4f}")
         logger.info(f"Tile Delta2: {tile_delta2:.4f}")
         logger.info(f"Tile Delta3: {tile_delta3:.4f}")
@@ -339,6 +382,7 @@ def compute_dsm_metrics(
     total_mse  += tile_mse
     total_mae  += tile_mae
     total_rmse += tile_rmse
+    total_r2 += tile_r2
 
     total_delta1 += tile_delta1
     total_delta2 += tile_delta2
@@ -371,6 +415,7 @@ def compute_dsm_metrics(
         count_high_rise,
         count_mid_rise,
         count_low_rise,
+        total_r2,
         dsm_tile_,
         dsm_pred_
     )
@@ -440,6 +485,9 @@ def compute_validation_metrics(
         train_avg_mid_rise_rmse = train_metrics_data['mid_rise_rmse']
         train_avg_low_rise_rmse = train_metrics_data['low_rise_rmse']
         
+        # Extract R² metrics
+        train_avg_r2 = train_metrics_data['r2']
+        
         train_time = train_metrics_data['time']
         train_count = train_metrics_data['count']
         
@@ -452,6 +500,7 @@ def compute_validation_metrics(
             f"    MSE:    {train_avg_mse:.6f}\n"
             f"    MAE:    {train_avg_mae:.6f}\n"
             f"    RMSE:   {train_avg_rmse:.6f}\n"
+            f"    R²:     {train_avg_r2:.6f}\n"
             f"    Delta1: {train_avg_delta1:.6f} ({train_avg_delta1*100:.2f}%)\n"
             f"    Delta2: {train_avg_delta2:.6f} ({train_avg_delta2*100:.2f}%)\n"
             f"    Delta3: {train_avg_delta3:.6f} ({train_avg_delta3*100:.2f}%)\n"
@@ -498,6 +547,9 @@ def compute_validation_metrics(
     valid_avg_mid_rise_rmse = valid_metrics_data['mid_rise_rmse']
     valid_avg_low_rise_rmse = valid_metrics_data['low_rise_rmse']
     
+    # Extract R² metrics
+    valid_avg_r2 = valid_metrics_data['r2']
+    
     valid_time = valid_metrics_data['time']
     valid_count = valid_metrics_data['count']
     
@@ -510,6 +562,7 @@ def compute_validation_metrics(
         f"    MSE:    {valid_avg_mse:.6f}\n"
         f"    MAE:    {valid_avg_mae:.6f}\n"
         f"    RMSE:   {valid_avg_rmse:.6f}\n"
+        f"    R²:     {valid_avg_r2:.6f}\n"
         f"    Delta1: {valid_avg_delta1:.6f} ({valid_avg_delta1*100:.2f}%)\n"
         f"    Delta2: {valid_avg_delta2:.6f} ({valid_avg_delta2*100:.2f}%)\n"
         f"    Delta3: {valid_avg_delta3:.6f} ({valid_avg_delta3*100:.2f}%)\n"
@@ -553,6 +606,9 @@ def compute_validation_metrics(
         train_metrics['mid_rise_rmse'] = train_metrics.get('mid_rise_rmse', []) + [train_avg_mid_rise_rmse]
         train_metrics['low_rise_rmse'] = train_metrics.get('low_rise_rmse', []) + [train_avg_low_rise_rmse]
         
+        # Update R² metrics
+        train_metrics['r2'] = train_metrics.get('r2', []) + [train_avg_r2]
+        
         # Update segmentation metrics
         train_metrics['miou'] = train_metrics.get('miou', []) + [train_miou]
         
@@ -590,6 +646,9 @@ def compute_validation_metrics(
     valid_metrics['high_rise_rmse'] = valid_metrics.get('high_rise_rmse', []) + [valid_avg_high_rise_rmse]
     valid_metrics['mid_rise_rmse'] = valid_metrics.get('mid_rise_rmse', []) + [valid_avg_mid_rise_rmse]
     valid_metrics['low_rise_rmse'] = valid_metrics.get('low_rise_rmse', []) + [valid_avg_low_rise_rmse]
+    
+    # Update R² metrics
+    valid_metrics['r2'] = valid_metrics.get('r2', []) + [valid_avg_r2]
     
     # Update segmentation metrics
     valid_metrics['miou'] = valid_metrics.get('miou', []) + [valid_miou]

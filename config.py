@@ -173,14 +173,14 @@ early_stop_delta = 1e-1  # Minimum change in monitored value to qualify as an im
 
 # Evaluation metric configuration
 # Define available metrics first, since other configs depend on it
-metric_names = ['mse', 'mae', 'rmse', 'delta1', 'delta2', 'delta3', 
+metric_names = ['mse', 'mae', 'rmse', 'r2', 'delta1', 'delta2', 'delta3', 
                 'rmse_building', 'rmse_matched', 
                 'high_rise_rmse', 'mid_rise_rmse', 'low_rise_rmse']
 
 # Categorize metrics into error metrics (lower is better) and accuracy metrics (higher is better)
 height_error_metrics = ['mse', 'mae', 'rmse', 'rmse_building', 'rmse_matched', 
                         'high_rise_rmse', 'mid_rise_rmse', 'low_rise_rmse']
-height_accuracy_metrics = ['delta1', 'delta2', 'delta3']
+height_accuracy_metrics = ['delta1', 'delta2', 'delta3', 'r2']
 
 # Segmentation metrics separated by type
 segmentation_class_metrics = ['iou', 'precision', 'recall', 'f1_score']  # Per-class metrics
