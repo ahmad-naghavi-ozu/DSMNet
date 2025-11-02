@@ -20,21 +20,25 @@ def r2_score(y, yhat, eps=1e-8):
     - Negative values indicate the model performs worse than the mean
     
     Args:
-        y (np.ndarray): Ground truth values (flattened array)
-        yhat (np.ndarray): Predicted values (flattened array)
+        y (np.ndarray): Ground truth values (1D or 2D array)
+        yhat (np.ndarray): Predicted values (1D or 2D array)
         eps (float): Small epsilon value to avoid division by zero
         
     Returns:
-        float: R² score, or None if input is empty
+        float: R² score computed across all pixels, or None if input is empty
     """
-    if y.size == 0:
+    # Flatten arrays to ensure 1D computation across all pixels
+    y_flat = y.flatten()
+    yhat_flat = yhat.flatten()
+    
+    if y_flat.size == 0:
         return None
     
     # Residual sum of squares
-    ss_res = np.sum((y - yhat) ** 2)
+    ss_res = np.sum((y_flat - yhat_flat) ** 2)
     
     # Total sum of squares
-    ss_tot = np.sum((y - np.mean(y)) ** 2)
+    ss_tot = np.sum((y_flat - np.mean(y_flat)) ** 2)
     
     # Handle edge case where all ground truth values are the same
     if ss_tot < eps:
