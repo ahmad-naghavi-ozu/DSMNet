@@ -9,43 +9,6 @@ from typing import Optional, List, Tuple
 from config import *
 
 
-def r2_score(y, yhat, eps=1e-8):
-    """
-    Compute the coefficient of determination (R²) for regression tasks.
-    
-    R² represents the proportion of variance in the dependent variable that is 
-    predictable from the independent variable(s). It ranges from -∞ to 1, where:
-    - 1.0 indicates perfect prediction
-    - 0.0 indicates the model performs no better than a horizontal line at the mean
-    - Negative values indicate the model performs worse than the mean
-    
-    Args:
-        y (np.ndarray): Ground truth values (1D or 2D array)
-        yhat (np.ndarray): Predicted values (1D or 2D array)
-        eps (float): Small epsilon value to avoid division by zero
-        
-    Returns:
-        float: R² score computed across all pixels, or None if input is empty
-    """
-    # Flatten arrays to ensure 1D computation across all pixels
-    y_flat = y.flatten()
-    yhat_flat = yhat.flatten()
-    
-    if y_flat.size == 0:
-        return None
-    
-    # Residual sum of squares
-    ss_res = np.sum((y_flat - yhat_flat) ** 2)
-    
-    # Total sum of squares
-    ss_tot = np.sum((y_flat - np.mean(y_flat)) ** 2)
-    
-    # Handle edge case where all ground truth values are the same
-    if ss_tot < eps:
-        return 0.0
-    
-    return 1.0 - ss_res / (ss_tot + eps)
-
 def update_confusion_matrix(pred, target):
     """
     Update confusion matrix for semantic segmentation evaluation.
@@ -184,6 +147,42 @@ def format_segmentation_metrics(iou_per_class: np.ndarray,
     
     return '\n'.join(output_parts)
 
+def r2_score(y, yhat, eps=1e-8):
+    """
+    Compute the coefficient of determination (R²) for regression tasks.
+    
+    R² represents the proportion of variance in the dependent variable that is 
+    predictable from the independent variable(s). It ranges from -∞ to 1, where:
+    - 1.0 indicates perfect prediction
+    - 0.0 indicates the model performs no better than a horizontal line at the mean
+    - Negative values indicate the model performs worse than the mean
+    
+    Args:
+        y (np.ndarray): Ground truth values (1D or 2D array)
+        yhat (np.ndarray): Predicted values (1D or 2D array)
+        eps (float): Small epsilon value to avoid division by zero
+        
+    Returns:
+        float: R² score computed across all pixels, or None if input is empty
+    """
+    # Flatten arrays to ensure 1D computation across all pixels
+    y_flat = y.flatten()
+    yhat_flat = yhat.flatten()
+    
+    if y_flat.size == 0:
+        return None
+    
+    # Residual sum of squares
+    ss_res = np.sum((y_flat - yhat_flat) ** 2)
+    
+    # Total sum of squares
+    ss_tot = np.sum((y_flat - np.mean(y_flat)) ** 2)
+    
+    # Handle edge case where all ground truth values are the same
+    if ss_tot < eps:
+        return 0.0
+    
+    return 1.0 - ss_res / (ss_tot + eps)
 
 def compute_dsm_metrics(
     verbose,
