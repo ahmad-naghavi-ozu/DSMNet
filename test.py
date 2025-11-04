@@ -54,8 +54,7 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
         mtl = MTL(
             backboneNet, 
             sem_flag=sem_flag, 
-            norm_flag=norm_flag, 
-            edge_flag=edge_flag
+            norm_flag=norm_flag
         )
         mtl.load_weights(predCheckPointPath)
 
@@ -110,7 +109,7 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
             cropRGB = rgb_data[crop]
             y1, y2, x1, x2 = coordinates[crop]
             prob_matrix = gaussian_kernel(cropRGB.shape[0], cropRGB.shape[1])
-            dsm_output, sem_output, norm_output, edge_output = mtl.call(cropRGB[np.newaxis, ...], mtl_head_mode, training=False)
+            dsm_output, sem_output, norm_output = mtl.call(cropRGB[np.newaxis, ...], training=False)
 
             if correction:
                 correctionList = []
@@ -118,8 +117,6 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
                     correctionList.append(sem_output)
                 if norm_flag:
                     correctionList.append(norm_output)
-                if edge_flag:
-                    correctionList.append(edge_output)
                 correctionList = [dsm_output] + correctionList + [cropRGB[np.newaxis, ...]]
                 correctionInput = tf.concat(correctionList, axis=-1)
 
@@ -228,7 +225,6 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
                 f"dsm_"
                 f"{1 if sem_flag else 0}"
                 f"{1 if norm_flag else 0}"
-                f"{1 if edge_flag else 0}"
                 f"{'+' if correction else ''}"
             )
             dsm_output_dir = f"./output/{dataset_name}/{sar_indicator}/{subfolder}/"

@@ -77,8 +77,7 @@ backboneNet = DenseNet121(
 mtl = MTL(
     backboneNet, 
     sem_flag=sem_flag, 
-    norm_flag=norm_flag, 
-    edge_flag=edge_flag
+    norm_flag=norm_flag
     )
 mtl.load_weights(predCheckPointPath)
 
@@ -173,19 +172,17 @@ for epoch in range(1, dae_numEpochs + 1):
     # Feed the model and updating it afterwards with a batch of training samples
     for iter in range(1, dae_train_iters + 1):
 
-        rgb_batch, dsm_batch, _, _, _ = \
+        rgb_batch, dsm_batch, _, _ = \
         generate_training_batches(train_rgb, train_sar, train_dsm, [], iter, mtl_flag=False)
 
         # Feed MTL with the selected batch and then feed its output to DAE
-        dsm_out, sem_out, norm_out, edge_out = mtl.call(rgb_batch, mtl_head_mode, training=False)
+        dsm_out, sem_out, norm_out = mtl.call(rgb_batch, training=False)
         # Concatenate MTL outputs alongside the RGB input for the sake of DAE input
         correctionList = []
         if (sem_flag):
             correctionList.append(sem_out)
         if (norm_flag):
             correctionList.append(norm_out)
-        if (edge_flag):
-            correctionList.append(edge_out)
         correctionList = [dsm_out] + correctionList + [rgb_batch]
         correctionInput = tf.concat(correctionList, axis=-1)
 

@@ -80,8 +80,7 @@ with strategy.scope():
     mtl = MTL(
         backboneNet, 
         sem_flag=sem_flag, 
-        norm_flag=norm_flag, 
-        edge_flag=edge_flag
+        norm_flag=norm_flag
         )
     # Load saved weights in the beginning if there is any
     if mtl_preload: 
@@ -131,10 +130,10 @@ if train_valid_flag:
 
 # Define distributed training step for multi-GPU training
 @tf.function
-def distributed_train_step(rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch):
-    def train_step(rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch):
+def distributed_train_step(rgb_batch, dsm_batch, sem_batch, norm_batch):
+    def train_step(rgb_batch, dsm_batch, sem_batch, norm_batch):
         with tf.GradientTape() as tape:
-            dsm_out, sem_out, norm_out, edge_out = mtl.call(rgb_batch, mtl_head_mode, training=True)
+            dsm_out, sem_out, norm_out = mtl.call(rgb_batch, training=True)
             
             # Compute losses with proper reduction for distributed training
             L1_per_sample = REG_LOSS(tf.squeeze(dsm_batch), tf.squeeze(dsm_out))
@@ -157,23 +156,17 @@ def distributed_train_step(rgb_batch, dsm_batch, sem_batch, norm_batch, edge_bat
                 L3 = tf.reduce_sum(L3_per_sample) * (1.0 / global_batch_size)
             else:
                 L3 = tf.constant(0, dtype=tf.float32)
-                
-            if edge_flag:
-                L4_per_sample = REG_LOSS(tf.squeeze(edge_batch), tf.squeeze(edge_out))
-                L4 = tf.reduce_sum(L4_per_sample) * (1.0 / global_batch_size)
-            else:
-                L4 = tf.constant(0, dtype=tf.float32)
             
             # Compute the overall loss according to scaling factors
-            total_loss = w1 * L1 + w2 * L2 + w3 * L3 + w4 * L4
+            total_loss = w1 * L1 + w2 * L2 + w3 * L3
             
         grads = tape.gradient(total_loss, mtl.trainable_variables)
         optimizer.apply_gradients(zip(grads, mtl.trainable_variables))
         
-        return total_loss, L1, L2, L3, L4, batch_rmse
+        return total_loss, L1, L2, L3, batch_rmse
     
     # Run the training step on all replicas
-    return strategy.run(train_step, args=(rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch))
+    return strategy.run(train_step, args=(rgb_batch, dsm_batch, sem_batch, norm_batch))
 
 # Create optimizer once within strategy scope for multi-GPU
 with strategy.scope():
@@ -199,30 +192,28 @@ for epoch in range(1, mtl_numEpochs + 1):
     error_L1 = 0.0
     error_L2 = 0.0
     error_L3 = 0.0
-    error_L4 = 0.0
     error_rmse = 0.0  # Add new RMSE tracker
 
     # Feed the model and updating it afterwards with a batch of training samples
     for iter in range(1, mtl_train_iters + 1):
 
-        rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch = \
+        rgb_batch, dsm_batch, sem_batch, norm_batch = \
         generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, mtl_flag=True)
 
         # Use distributed training step for multi-GPU training
         if multi_gpu_enabled:
-            total_loss, L1, L2, L3, L4, batch_rmse = distributed_train_step(
-                rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch)
+            total_loss, L1, L2, L3, batch_rmse = distributed_train_step(
+                rgb_batch, dsm_batch, sem_batch, norm_batch)
             # Reduce the losses across replicas
             total_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, total_loss, axis=None)
             L1 = strategy.reduce(tf.distribute.ReduceOp.MEAN, L1, axis=None)
             L2 = strategy.reduce(tf.distribute.ReduceOp.MEAN, L2, axis=None)
             L3 = strategy.reduce(tf.distribute.ReduceOp.MEAN, L3, axis=None)
-            L4 = strategy.reduce(tf.distribute.ReduceOp.MEAN, L4, axis=None)
             batch_rmse = strategy.reduce(tf.distribute.ReduceOp.MEAN, batch_rmse, axis=None)
         else:
             # Original single-GPU training code
             with tf.GradientTape() as tape:
-                dsm_out, sem_out, norm_out, edge_out = mtl.call(rgb_batch, mtl_head_mode, training=True)
+                dsm_out, sem_out, norm_out = mtl.call(rgb_batch, training=True)
                 
                 # For single GPU, we need to handle the NONE reduction manually too
                 L1_per_sample = REG_LOSS(tf.squeeze(dsm_batch), tf.squeeze(dsm_out))
@@ -245,27 +236,20 @@ for epoch in range(1, mtl_numEpochs + 1):
                     L3 = tf.reduce_mean(L3_per_sample)
                 else:
                     L3 = tf.constant(0, dtype=tf.float32)
-                    
-                if edge_flag:
-                    L4_per_sample = REG_LOSS(tf.squeeze(edge_batch), tf.squeeze(edge_out))
-                    L4 = tf.reduce_mean(L4_per_sample)
-                else:
-                    L4 = tf.constant(0, dtype=tf.float32)
                 
                 # Compute the overall loss according to scaling factors
-                total_loss = w1 * L1 + w2 * L2 + w3 * L3 + w4 * L4
+                total_loss = w1 * L1 + w2 * L2 + w3 * L3
                 
             # Update the model parameters
             grads = tape.gradient(total_loss, mtl.trainable_variables)
             optimizer.apply_gradients(zip(grads, mtl.trainable_variables))
 
         # Check for NaN values in loss components 
-        if tf.math.is_nan(L1) or tf.math.is_nan(L2) or tf.math.is_nan(L3) or tf.math.is_nan(L4):
+        if tf.math.is_nan(L1) or tf.math.is_nan(L2) or tf.math.is_nan(L3):
             logger.error(f"NaN detected in loss values:")
             logger.error(f"L1 (DSM loss): {L1}")
             logger.error(f"L2 (Semantic loss): {L2}")
             logger.error(f"L3 (Normal loss): {L3}")
-            logger.error(f"L4 (Edge loss): {L4}")
             logger.error(f"Current batch statistics:")
             if not multi_gpu_enabled:  # Only log these for single GPU
                 logger.error(f"DSM output range: {tf.reduce_min(dsm_out)} to {tf.reduce_max(dsm_out)}")
@@ -281,13 +265,12 @@ for epoch in range(1, mtl_numEpochs + 1):
         error_rmse = error_rmse + batch_rmse.numpy()  # Add new DSM RMSE tracker
         error_L2 = error_L2 + L2.numpy()  
         error_L3 = error_L3 + L3.numpy()
-        error_L4 = error_L4 + L4.numpy()
 
         # Compute average loss values after a number of iterations and log them
         if should_compute_metrics(iter, mtl_train_iters, mtl_log_freq):
-            mtl_min_loss, last_epoch_saved, error_total, error_L1, error_L2, error_L3, error_L4, error_rmse = \
+            mtl_min_loss, last_epoch_saved, error_total, error_L1, error_L2, error_L3, error_rmse = \
                 compute_mtl_metrics(iter, mtl_train_iters, mtl_log_freq, last_epoch_saved, epoch, mtl_min_loss, 
-                                  error_total, error_L1, error_L2, error_L3, error_L4, error_rmse, 
+                                  error_total, error_L1, error_L2, error_L3, error_rmse, 
                                   logger, train_valid_flag, mtl, predCheckPointPath)
 
     # Calculate epoch runtime

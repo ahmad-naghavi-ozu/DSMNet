@@ -706,7 +706,6 @@ def compute_mtl_metrics(
     error_L1,             # DSM error accumulator
     error_L2,             # Semantic error accumulator
     error_L3,             # Normal error accumulator
-    error_L4,             # Edge error accumulator
     error_rmse,           # RMSE error accumulator
     logger,               # Logger instance
     train_valid_flag,     # Whether validation is enabled
@@ -759,8 +758,6 @@ def compute_mtl_metrics(
         logger.info('average SEM loss    : {:.6f}'.format(error_L2 / mtl_log_freq_))
     if (norm_flag):
         logger.info('average NORM loss   : {:.6f}'.format(error_L3 / mtl_log_freq_))
-    if (edge_flag):
-        logger.info('average Edge loss   : {:.6f}'.format(error_L4 / mtl_log_freq_))
 
     # Save the model weights as checkpoints if the validation is disabled
     if not train_valid_flag:
@@ -777,7 +774,6 @@ def compute_mtl_metrics(
     error_L1 = 0.0
     error_L2 = 0.0
     error_L3 = 0.0
-    error_L4 = 0.0
     error_rmse = 0.0  # Reset RMSE tracker
     
     return (
@@ -787,7 +783,6 @@ def compute_mtl_metrics(
         error_L1,
         error_L2, 
         error_L3,
-        error_L4,
         error_rmse
     )
 

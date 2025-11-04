@@ -204,24 +204,15 @@ plot_metrics = ['rmse', 'delta1', 'iou', 'f1_score']  # List of metrics to plot 
 reg_loss = 'mse'  # 'mse' or 'huber'
 huber_delta = 0.1  # Huber loss hyperparameter, delta
 
-# Edgemap configuration
-# Threshold for potential rooftops out of nDSM (pixel values are supposed to be in [0, 255])
-roof_height_threshold = 50
-# Canny edge detection algorithm low and high thresholds for detecting potential edges for rooftops
-canny_lt, canny_ht = 50, 150
-
 # Building height classification thresholds for height-based metrics
 # These thresholds define building categories based on height in meters
 low_rise_max = 15    # Buildings with height < 15m are considered low-rise
 mid_rise_max = 40    # Buildings with height >= 15m and < 40m are considered mid-rise
                      # Buildings with height >= 40m are considered high-rise
 
-# Set flags for additive heads of MTL, viz semantic segmentation, surface normals, and edgemaps
-sem_flag, norm_flag, edge_flag = True, True, False
+# Set flags for additive heads of MTL, viz semantic segmentation and surface normals
+sem_flag, norm_flag = True, True
 sem_flag = False if any(dataset_name.startswith(d) for d in no_sem_datasets) else sem_flag  # Disable semantic segmentation for datasets without labels
-
-# Set flag for MTL heads interconnection mode, either fully intertwined ('full') or just for the DSM head ('dsm')
-mtl_head_mode = 'dsm'  # 'full' or 'dsm'
 
 # Set flag for applying denoising autoencoder during testing. 
 # Note: If set to True, this will affect train/valid error computations
@@ -235,38 +226,38 @@ correction = os.environ.get('CORRECTION', 'True').lower() == 'true'
 # Note: You may change the scaling factors based on your discretion.
 if 'Vaihingen' in dataset_name:
     label_codes = [(255, 255, 255), (0, 0, 255), (0, 255, 255), (0, 255, 0), (255, 255, 0), (255, 0, 0)]
-    w1, w2, w3, w4 = (1e-4, 1e-1, 1e-5, 0.001)  # weights for: dsm, sem, norm, edge
+    w1, w2, w3 = (1e-4, 1e-1, 1e-5)  # weights for: dsm, sem, norm
 
 elif 'DFC2018' in dataset_name:
     label_codes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-    w1, w2, w3, w4 = (100.0, 1.0, 10.0, 100.0)  # weights for: dsm, sem, norm, edge
+    w1, w2, w3 = (100.0, 1.0, 10.0)  # weights for: dsm, sem, norm
 
 elif dataset_name.startswith('DFC2019'):
     if dataset_name.endswith('bin'):
         label_codes = [0, 1]
-        w1, w2, w3, w4 = (1e-2, 1e-1, 1e-5, 100.0)  # weights for: dsm, sem, norm, edge
+        w1, w2, w3 = (1e-2, 1e-1, 1e-5)  # weights for: dsm, sem, norm
     else:
         label_codes = [2, 5, 6, 9, 17, 65]
-        w1, w2, w3, w4 = (1e-2, 1e-1, 1e-5, 100.0)  # weights for: dsm, sem, norm, edge
+        w1, w2, w3 = (1e-2, 1e-1, 1e-5)  # weights for: dsm, sem, norm
 
 elif dataset_name.startswith('DFC2023'):
     label_codes = [0, 1]
-    w1, w2, w3, w4 = (1e-3, 1.0, 1e-5, 1e-3)  # weights for: dsm, sem, norm, edge
+    w1, w2, w3 = (1e-3, 1.0, 1e-5)  # weights for: dsm, sem, norm
 
 elif dataset_name.startswith(('Contest', 'Huawei_Contest')):
     label_codes = [0, 1]
-    w1, w2, w3, w4 = (1e-5, 1e-6, 1e-10, 1e-3)  # weights for: dsm, sem, norm, edge
+    w1, w2, w3 = (1e-5, 1e-6, 1e-10)  # weights for: dsm, sem, norm
 
 elif dataset_name.startswith('Dublin'):
     # Dublin dataset has no semantic segmentation labels
     label_codes = [0]  # Dummy label code for datasets without semantic segmentation
-    w1, w2, w3, w4 = (1e-3, 0.0, 1e-5, 1e-3)  # weights for: dsm, sem (disabled), norm, edge
+    w1, w2, w3 = (1e-3, 0.0, 1e-5)  # weights for: dsm, sem (disabled), norm
 
 elif dataset_name.startswith('SSBH'):
     # SSBH dataset: binary building classification (background=0, building=1) with much class imbalance
     label_codes = [0, 1]
-    # w1, w2, w3, w4 = (1e-1, 50.0, 1e-5, 1e-3)  # weights for: dsm, sem, norm, edge
-    w1, w2, w3, w4 = (1e0, 1e3, 1e-3, 1e-3)  # weights for: dsm, sem, norm, edge
+    # w1, w2, w3 = (1e-1, 50.0, 1e-5)  # weights for: dsm, sem, norm
+    w1, w2, w3 = (1e0, 1e3, 1e-3)  # weights for: dsm, sem, norm
 
 # Handle datasets without semantic labels
 if any(dataset_name.startswith(d) for d in no_sem_datasets):

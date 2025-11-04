@@ -171,8 +171,6 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             Batch of one-hot encoded semantic labels (if mtl_flag=True)
         - norm_batch : numpy.ndarray
             Batch of surface normal maps (if mtl_flag=True)
-        - edge_batch : numpy.ndarray
-            Batch of edge maps (if mtl_flag=True)
     Notes:
     -----
     - For DFC2018, DSM is computed as difference between surface and terrain models
@@ -183,7 +181,6 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
     dsm_batch = []
     sem_batch = [] if sem_flag else None
     norm_batch = [] if norm_flag else None
-    edge_batch = [] if edge_flag else None
 
     # Determine the actual batch size to generate based on multi-GPU configuration and model type
     # IMPORTANT: For multi-GPU, we generate global_batch_size samples total, which TensorFlow
@@ -208,8 +205,6 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                 if norm_flag:
                     norm_tile = genNormals(dsm_tile); 
                     norm_tile = (norm_tile * 255).astype(np.uint8)
-                if edge_flag:
-                    edge_tile = genEdgeMap(dsm_tile);
 
         elif dataset_name == 'DFC2018':
             rgb_tile = np.array(Image.open(train_rgb[idx])); 
@@ -224,8 +219,6 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                 if norm_flag:
                     norm_tile = genNormals(dsm_tile); 
                     norm_tile = (norm_tile * 255).astype(np.uint8)
-                if edge_flag:
-                    edge_tile = genEdgeMap(dsm_tile);
 
     # Generate or select random patches - now using actual_batch_size for proper multi-GPU distribution
     for i in range(actual_batch_size):
@@ -246,8 +239,6 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                 
                 if norm_flag:
                     norm = norm_tile[r:r + cropSize, c:c + cropSize]
-                if edge_flag:
-                    edge = edge_tile[r:r + cropSize, c:c + cropSize]
         else:
             # Choose batch items in order based on every dataset specifics
             # For non-large-tile datasets, we need to calculate the correct sample index
@@ -296,9 +287,6 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                 if norm_flag:
                     norm = genNormals(dsm); 
                     norm = (norm * 255).astype(np.uint8)
-                if edge_flag:
-                    edge = genEdgeMap(dsm);
-
         rgb_batch.append(rgb)
         dsm_batch.append(dsm)
         if mtl_flag:
@@ -306,8 +294,6 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
                 sem_batch.append(sem_to_onehot(sem))
             if norm_flag and norm_batch is not None:
                 norm_batch.append(norm)
-            if edge_flag and edge_batch is not None:
-                edge_batch.append(edge)
 
     rgb_batch = np.array(rgb_batch)
     dsm_batch = np.array(dsm_batch)[..., np.newaxis]
@@ -320,12 +306,8 @@ def generate_training_batches(train_rgb, train_sar, train_dsm, train_sem, iter, 
             norm_batch = np.array(norm_batch)
         else:
             norm_batch = []  # Return empty list when norm_flag is False
-        if edge_flag and edge_batch is not None:
-            edge_batch = np.array(edge_batch)[..., np.newaxis]
-        else:
-            edge_batch = []  # Return empty list when edge_flag is False
     
-    return rgb_batch, dsm_batch, sem_batch, norm_batch, edge_batch
+    return rgb_batch, dsm_batch, sem_batch, norm_batch
 
 
 def load_test_tiles(test_rgb, test_sar, test_dsm, test_sem, tile):
@@ -502,42 +484,6 @@ def genNormals(dsm_tile, mode='sobel'):
     norm_tile /= 2
 
     return norm_tile
-
-
-def genEdgeMap(DSM, roof_height_threshold=roof_height_threshold, canny_lt=canny_lt, canny_ht=canny_ht):
-    """
-    Generates an edge map from a Digital Surface Model (DSM) image.
-    
-    Parameters:
-    - DSM (numpy.ndarray): The input Digital Surface Model (DSM) image.
-    - roof_height_threshold (float): Threshold value for identifying roof heights.
-    - canny_lt (float): Lower threshold for Canny edge detection.
-    - canny_ht (float): Higher threshold for Canny edge detection.
-    
-    Returns:
-    - numpy.ndarray: An edge map generated from the input DSM image.
-    """
-    # Normalize DSM to range (0, 255) if not already and convert to uint8 for thresholding and edge detection
-    if (DSM.min() >= 0 and DSM.max() <= 1) or DSM.min() < 0 or DSM.max() > 255:
-        DSM = cv2.normalize(DSM, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    else:
-        DSM = DSM.astype(np.uint8)
-
-    # Find the roof height edges
-    _, roof_height_edges = cv2.threshold(DSM, roof_height_threshold, 255, cv2.THRESH_BINARY)
-
-    # Apply Gaussian smoothing to reduce noise
-    edges_smoothed = cv2.GaussianBlur(roof_height_edges, (5, 5), 0)
-
-    # Apply morphological operations to remove small contours
-    # Adjust the kernel size and iterations as needed
-    kernel = np.ones((3, 3), np.uint8)
-    edges_cleaned = cv2.morphologyEx(edges_smoothed, cv2.MORPH_OPEN, kernel, iterations=2)
-
-    # Apply Canny edge detection to enhance the edges
-    edges = cv2.Canny(edges_cleaned, canny_lt, canny_ht)
-
-    return edges
 
 
 def normalize_array(arr, min, max):
