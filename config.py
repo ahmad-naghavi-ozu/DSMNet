@@ -235,7 +235,9 @@ elif 'DFC2018' in dataset_name:
 elif dataset_name.startswith('DFC2019'):
     if 'bin' in dataset_name:
         label_codes = [0, 1]
-        w1, w2, w3 = (1e-2, 1e-1, 1e-5)  # weights for: dsm, sem, norm
+        # EXPERIMENTAL: Increased semantic weight for building-focused dataset (similar to SSBH)
+        # Original: w1, w2, w3 = (1e-2, 1e-1, 1e-5)  # weights for: dsm, sem, norm
+        w1, w2, w3 = (1e-1, 1e1, 1e-4)  # weights for: dsm, sem, norm - 10x DSM, 100x sem, 10x norm
     else:
         label_codes = [2, 5, 6, 9, 17, 65]
         w1, w2, w3 = (1e-2, 1e-1, 1e-5)  # weights for: dsm, sem, norm
