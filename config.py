@@ -20,7 +20,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 
 # Define the dataset to be used for training and testing
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
-# DFC2019_crp512_bin, and DFC2023 derivatives as follows:
+# DFC2019_crp512_bin, DFC2019_crp512_bin_mini, and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023mini, and DFC2023S (Sinan's splitting) datasets
 dataset_name = 'DFC2019_crp512_bin'  # Change this to the desired dataset name
 
@@ -233,7 +233,7 @@ elif 'DFC2018' in dataset_name:
     w1, w2, w3 = (100.0, 1.0, 10.0)  # weights for: dsm, sem, norm
 
 elif dataset_name.startswith('DFC2019'):
-    if dataset_name.endswith('bin'):
+    if 'bin' in dataset_name:
         label_codes = [0, 1]
         w1, w2, w3 = (1e-2, 1e-1, 1e-5)  # weights for: dsm, sem, norm
     else:
