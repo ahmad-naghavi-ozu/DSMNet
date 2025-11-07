@@ -138,10 +138,27 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
         dsm_pred = np.divide(dsm_pred, gaussian)
         
         # Calculate SEM metrics only if semantic segmentation is enabled and data is available
+        # Store metrics for later printing (after regression metrics)
+        tile_sem_metrics = None
         if sem_flag and sem_tile is not None:
             sem_pred = np.divide(sem_pred, gaussian[:, :, np.newaxis])
             sem_pred = convert_sem_onehot_to_annotation(sem_pred)
-            confusion_matrix += update_confusion_matrix(sem_pred, sem_tile)
+            tile_confusion_matrix = update_confusion_matrix(sem_pred, sem_tile)
+            confusion_matrix += tile_confusion_matrix
+            
+            # Calculate per-tile segmentation metrics (will be printed after regression metrics)
+            if verbose:
+                tile_iou, tile_f1, tile_precision, tile_recall, tile_miou, tile_oa, tile_fwiou = \
+                    calculate_segmentation_metrics_from_confusion_matrix(tile_confusion_matrix)
+                tile_sem_metrics = {
+                    'iou': tile_iou,
+                    'f1': tile_f1,
+                    'precision': tile_precision,
+                    'recall': tile_recall,
+                    'miou': tile_miou,
+                    'oa': tile_oa,
+                    'fwiou': tile_fwiou
+                }
         else:
             sem_pred = None
 
@@ -211,6 +228,20 @@ def test_dsm(mtl, dae, mode, save_test=False, verbose=False):
             pred_mask=pred_mask if 'pred_mask' in locals() else None,
             total_r2=total_r2
         )
+
+        # Print per-tile segmentation metrics after regression metrics
+        if verbose and tile_sem_metrics is not None:
+            logger.info("\n--- Tile Segmentation Metrics ---")
+            for i, label_code in enumerate(label_codes):
+                label_name = f"Class {label_code}"
+                logger.info(f"  {label_name}:")
+                logger.info(f"    IoU:       {tile_sem_metrics['iou'][i]:.4f}")
+                logger.info(f"    Precision: {tile_sem_metrics['precision'][i]:.4f}")
+                logger.info(f"    Recall:    {tile_sem_metrics['recall'][i]:.4f}")
+                logger.info(f"    F1:        {tile_sem_metrics['f1'][i]:.4f}")
+            logger.info(f"  mIoU:              {tile_sem_metrics['miou']:.4f}")
+            logger.info(f"  Overall Accuracy:  {tile_sem_metrics['oa']:.4f}")
+            logger.info(f"  FWIoU:             {tile_sem_metrics['fwiou']:.4f}")
 
         # Keep track of computation time
         tile_time = end - start

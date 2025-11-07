@@ -22,7 +22,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 0 = all messages, 1 = filter out INF
 # Options include Vaihingen, Vaihingen_crp256, DFC2018, DFC2018_crp256, DFC2019_crp256, DFC2019_crp256_bin, DFC2019_crp512, 
 # DFC2019_crp512_bin, DFC2019_crp512_bin_mini (for debugging purposes), and DFC2023 derivatives as follows:
 # DFC2023A (Ahmad's splitting), DFC2023Asmall, DFC2023mini, and DFC2023S (Sinan's splitting) datasets
-dataset_name = 'DFC2019_crp512_bin_mini'  # Change this to the desired dataset name
+dataset_name = 'DFC2019_crp512_bin'  # Change this to the desired dataset name
 
 # Shortcut path to the datasets parent folder
 # Because these files may be voluminous, thus you may put them inside another folder to be 
@@ -237,7 +237,8 @@ elif dataset_name.startswith('DFC2019'):
         label_codes = [0, 1]
         # EXPERIMENTAL: Increased semantic weight for building-focused dataset (similar to SSBH)
         # Original: w1, w2, w3 = (1e-2, 1e-1, 1e-5)  # weights for: dsm, sem, norm
-        w1, w2, w3 = (1e-1, 1e1, 1e-4)  # weights for: dsm, sem, norm - 10x DSM, 100x sem, 10x norm
+        # w1, w2, w3 = (1e-1, 1e1, 1e-4)  # weights for: dsm, sem, norm - 10x DSM, 100x sem, 10x norm
+        w1, w2, w3 = (1, 1, 1)  # weights for: dsm, sem, norm - constant ones (the weighted loss function will be adjusted accordingly)
     else:
         label_codes = [2, 5, 6, 9, 17, 65]
         w1, w2, w3 = (1e-2, 1e-1, 1e-5)  # weights for: dsm, sem, norm

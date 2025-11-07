@@ -146,7 +146,17 @@ def distributed_train_step(rgb_batch, dsm_batch, sem_batch, norm_batch):
             batch_rmse = tf.reduce_mean(rmse_per_sample)
             
             if sem_flag:
-                L2_per_sample = CCE(sem_batch, sem_out)
+                # Class-weighted categorical cross entropy for imbalanced building detection
+                # DFC2019_crp512_bin: Background 78.6%, Buildings 21.4% → 3.68:1 imbalance
+                # Using inverse frequency weighting: buildings get 2.34x weight
+                class_weights = tf.constant([1.0, 2.34], dtype=tf.float32)  # [background, building]
+
+                # Get true class indices and create weight mask based on ground truth
+                true_classes = tf.argmax(sem_batch, axis=-1, output_type=tf.int32)
+                weight_mask = tf.gather(class_weights, true_classes)
+
+                # Apply weights to per-sample losses (weight based on true class)
+                L2_per_sample = CCE(tf.cast(sem_batch, tf.float32), sem_out) * weight_mask
                 L2 = tf.reduce_sum(L2_per_sample) * (1.0 / global_batch_size)
             else:
                 L2 = tf.constant(0, dtype=tf.float32)
@@ -226,7 +236,17 @@ for epoch in range(1, mtl_numEpochs + 1):
                 batch_rmse = tf.reduce_mean(rmse_per_sample)
                 
                 if sem_flag:
-                    L2_per_sample = CCE(sem_batch, sem_out)
+                    # Class-weighted categorical cross entropy for imbalanced building detection
+                    # DFC2019_crp512_bin: Background 78.6%, Buildings 21.4% → 3.68:1 imbalance
+                    # Using inverse frequency weighting: buildings get 2.34x weight
+                    class_weights = tf.constant([1.0, 2.34], dtype=tf.float32)  # [background, building]
+
+                    # Get true class indices and create weight mask based on ground truth
+                    true_classes = tf.argmax(sem_batch, axis=-1, output_type=tf.int32)
+                    weight_mask = tf.gather(class_weights, true_classes)
+
+                    # Apply weights to per-sample losses (weight based on true class)
+                    L2_per_sample = CCE(tf.cast(sem_batch, tf.float32), sem_out) * weight_mask
                     L2 = tf.reduce_mean(L2_per_sample)
                 else:
                     L2 = tf.constant(0, dtype=tf.float32)
