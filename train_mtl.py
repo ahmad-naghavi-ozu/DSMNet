@@ -148,8 +148,8 @@ def distributed_train_step(rgb_batch, dsm_batch, sem_batch, norm_batch):
             if sem_flag:
                 # Class-weighted categorical cross entropy for imbalanced building detection
                 # DFC2019_crp512_bin: Background 78.6%, Buildings 21.4% → 3.68:1 imbalance
-                # Using inverse frequency weighting: buildings get 2.34x weight
-                class_weights = tf.constant([1.0, 2.34], dtype=tf.float32)  # [background, building]
+                # Using configurable class weights from config.py
+                class_weights = tf.constant(semantic_class_weights, dtype=tf.float32)  # [background, building]
 
                 # Get true class indices and create weight mask based on ground truth
                 true_classes = tf.argmax(sem_batch, axis=-1, output_type=tf.int32)
@@ -238,8 +238,8 @@ for epoch in range(1, mtl_numEpochs + 1):
                 if sem_flag:
                     # Class-weighted categorical cross entropy for imbalanced building detection
                     # DFC2019_crp512_bin: Background 78.6%, Buildings 21.4% → 3.68:1 imbalance
-                    # Using inverse frequency weighting: buildings get 2.34x weight
-                    class_weights = tf.constant([1.0, 2.34], dtype=tf.float32)  # [background, building]
+                    # Using configurable class weights from config.py
+                    class_weights = tf.constant(semantic_class_weights, dtype=tf.float32)  # [background, building]
 
                     # Get true class indices and create weight mask based on ground truth
                     true_classes = tf.argmax(sem_batch, axis=-1, output_type=tf.int32)

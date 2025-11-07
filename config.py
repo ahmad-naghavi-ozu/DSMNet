@@ -135,7 +135,7 @@ dae_training_samples = 10000
 dae_min_loss = float('inf')  # Minimum loss (DSM noise) threshold to save the DAE network weights as checkpoints
 
 # MTL saved weights preloading mode. If True, then all MTL model will be initialized with saved weights before training
-mtl_preload = False
+mtl_preload = True
 # MTL backbone frozen mode. If True, then the MTL backbone weights will not get updated during training to save time
 mtl_bb_freeze = False
 
@@ -238,7 +238,21 @@ elif dataset_name.startswith('DFC2019'):
         # EXPERIMENTAL: Increased semantic weight for building-focused dataset (similar to SSBH)
         # Original: w1, w2, w3 = (1e-2, 1e-1, 1e-5)  # weights for: dsm, sem, norm
         # w1, w2, w3 = (1e-1, 1e1, 1e-4)  # weights for: dsm, sem, norm - 10x DSM, 100x sem, 10x norm
-        w1, w2, w3 = (1, 1, 1)  # weights for: dsm, sem, norm - constant ones (the weighted loss function will be adjusted accordingly)
+        # EXPERIMENTAL: Balanced MTL loss coefficients based on observed loss magnitudes
+        # L1 (DSM): ~23K, L2 (Semantic): ~309K, L3 (Normals): ~793M
+        # Goal: Balance all losses to contribute equally (~33% each)
+        # Calculated optimal weights: w1=11368, w2=856, w3=0.3335
+        # Using exact calculated values for perfect balance:
+        w1, w2, w3 = (11368, 856, 0.3335)  # weights for: dsm, sem, norm - perfectly balanced
+
+        # Class weights for imbalanced semantic segmentation (background=0, building=1)
+        # DFC2019_crp512_bin: Background 78.6%, Buildings 21.4% → 3.68:1 imbalance
+        # Options for experimentation:
+        # - 1.0, 2.34: Inverse frequency weighting (current, gives ~2.34x weight to buildings)
+        # - 1.0, 3.0:  Moderate increase for buildings
+        # - 1.0, 4.0:  Strong emphasis on buildings
+        # - 1.0, 5.0:  Very strong emphasis on buildings
+        semantic_class_weights = [1.0, 5.0]  # [background_weight, building_weight] - EXPERIMENT WITH THIS!
     else:
         label_codes = [2, 5, 6, 9, 17, 65]
         w1, w2, w3 = (1e-2, 1e-1, 1e-5)  # weights for: dsm, sem, norm
